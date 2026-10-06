@@ -10,7 +10,6 @@ import {
 } from "@tabelhamem/ipc";
 import type { DiscoveredProject, SearchMatch } from "@tabelhamem/ipc";
 import { C, markdownStyle } from "./theme.jsx";
-import { windowRows } from "./rows.jsx";
 
 type Mode = "browse" | "search";
 // Ponte e memória dividem a coluna do meio; preview é a terceira coluna.
@@ -27,8 +26,6 @@ interface ProjRow {
 }
 type Row = OrgRow | ProjRow;
 
-const ROW_WINDOW = 41;
-const FILE_WINDOW = 30;
 const PREVIEW_WIDTH = 300;
 const SLUG_WIDTH = 28;
 
@@ -36,7 +33,7 @@ function slugLabel(slug: string): string {
   return slug.length > SLUG_WIDTH ? slug.slice(0, SLUG_WIDTH - 1) + "…" : slug;
 }
 
-export function App() {
+export function App(props?: { initialSlug?: string }) {
   const [projects, setProjects] = createSignal<DiscoveredProject[]>([]);
   const [cursor, setCursor] = createSignal(0);
   const [focus, setFocus] = createSignal<Focus>("projects");
@@ -52,6 +49,8 @@ export function App() {
 
   let inputRef: any = null;
   let scrollRef: any = null;
+  let projScrollRef: any = null;
+  let fileScrollRef: any = null;
 
   // Volta ao topo do preview ao trocar de arquivo/projeto.
   createEffect(() => {
@@ -59,6 +58,24 @@ export function App() {
     selected();
     try {
       scrollRef?.scrollTo(0);
+    } catch {}
+  });
+
+  // Mantém o cursor visível nas listas roláveis.
+  createEffect(() => {
+    const y = cursor();
+    rows();
+    try {
+      projScrollRef?.scrollTo({ x: 0, y });
+    } catch {}
+  });
+
+  createEffect(() => {
+    const y = mode() === "search" ? resultIdx() : fileCursor();
+    files();
+    results();
+    try {
+      fileScrollRef?.scrollTo({ x: 0, y });
     } catch {}
   });
 
@@ -104,22 +121,23 @@ export function App() {
       .join("\n");
   });
 
-  const visibleFiles = createMemo(() => {
-    const adapted = files().map((name) => ({ kind: "proj" as const, name }));
-    const w = windowRows(adapted, fileCursor(), FILE_WINDOW);
-    return { list: w.list.map((r) => r.name), offset: w.offset };
-  });
-
-  const visibleRows = createMemo(() => windowRows(rows(), cursor(), ROW_WINDOW));
-
   const refresh = () => {
     const list = discoverProjects();
     setProjects(list);
     const r = rows();
     if (cursor() >= r.length) setCursor(Math.max(0, r.length - 1));
+    // Slug inicial (só teste): posiciona o cursor nele no primeiro refresh.
+    if (!initialized && props?.initialSlug) {
+      initialized = true;
+      const idx = r.findIndex((x) => x.kind === "proj" && x.proj.slug === props.initialSlug);
+      if (idx >= 0) setCursor(idx);
+    }
     refreshFiles();
     setStatus(`${list.length} repos em ~/codigo + memória`);
   };
+
+  // Slug inicial (só teste): posiciona o cursor nele no primeiro refresh.
+  let initialized = false;
 
   const refreshFiles = () => {
     const p = selected();
@@ -321,13 +339,14 @@ export function App() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      <text>
+      <text flexShrink={0}>
         <span style={{ fg: C.primary } as any}>TAbelhaMem</span>
         <span style={{ fg: C.muted } as any}> · memória compartilhada entre agentes</span>
       </text>
       <box flexDirection="row" flexGrow={1}>
-        <box border borderColor={border("projects")} title={`Projetos · ${currentOrg()}`} width={34} flexShrink={0}>
-          <For each={visibleRows().list}>
+        <box border borderColor={border("projects")} title={`Projetos · ${currentOrg()}`} width={34} flexShrink={0} minHeight={0}>
+          <scrollbox ref={(el: any) => (projScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
+          <For each={rows()}>
             {(r, i) =>
               r.kind === "org" ? (
                 <text>
@@ -335,7 +354,7 @@ export function App() {
                 </text>
               ) : (
                 <text>
-                  {i() + visibleRows().offset === cursor() && focus() === "projects" ? (
+                  {i() === cursor() && focus() === "projects" ? (
                     <span style={{ fg: C.primary } as any}>{`▸ ${slugLabel(r.proj.slug)} `}</span>
                   ) : (
                     <span style={{ fg: C.text } as any}>{`  ${slugLabel(r.proj.slug)} `}</span>
@@ -345,14 +364,15 @@ export function App() {
               )
             }
           </For>
+          </scrollbox>
           <Show when={rows().length === 0}>
             <text>
               <span style={{ fg: C.muted } as any}>(vazio)</span>
             </text>
           </Show>
         </box>
-        <box flexDirection="column" width={46} flexShrink={0}>
-          <box border borderColor={border("bridge")} title="Ponte">
+        <box flexDirection="column" width={46} flexShrink={0} minHeight={0}>
+          <box border borderColor={border("bridge")} title="Ponte" minHeight={0}>
             <Show when={selected()} fallback={<text>sem seleção</text>}>
               <text>
                 <span style={{ fg: C.text } as any}>{`${selected()!.org ? selected()!.org + "/" : ""}${selected()!.slug}`}</span>
@@ -367,15 +387,24 @@ export function App() {
               </text>
             </Show>
           </box>
-          <box border borderColor={border("files")} title={`Memória (${files().length})`} flexGrow={1}>
+          <box border borderColor={border("files")} title={`Memória (${files().length})`} flexGrow={1} minHeight={0}>
+            <Show when={mode() === "search" && editing()}>
+              <input
+                ref={(el: any) => (inputRef = el)}
+                focused={mode() === "search" && editing()}
+                placeholder="buscar memória... (enter busca, esc sai)"
+                onSubmit={() => submitSearch()}
+              />
+            </Show>
+            <scrollbox ref={(el: any) => (fileScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
             <Show
               when={mode() === "search"}
               fallback={
                 <>
-                  <For each={visibleFiles().list}>
+                  <For each={files()}>
                     {(f, i) => (
                       <text>
-                        {i() + visibleFiles().offset === fileCursor() && focus() === "files" ? (
+                        {i() === fileCursor() && focus() === "files" ? (
                           <span style={{ fg: C.primary } as any}>{`▸ ${f}`}</span>
                         ) : (
                           <span style={{ fg: C.text } as any}>{`  ${f}`}</span>
@@ -391,14 +420,6 @@ export function App() {
                 </>
               }
             >
-              <Show when={editing()}>
-                <input
-                  ref={(el: any) => (inputRef = el)}
-                  focused={mode() === "search" && editing()}
-                  placeholder="buscar memória... (enter busca, esc sai)"
-                  onSubmit={() => submitSearch()}
-                />
-              </Show>
               <For each={results()}>
                 {(r, i) => (
                   <text>
@@ -416,15 +437,16 @@ export function App() {
                 </text>
               </Show>
             </Show>
+            </scrollbox>
           </box>
         </box>
-        <box border borderColor={border("preview")} title={activeFile() || "preview"} flexGrow={1}>
-          <scrollbox ref={(el: any) => (scrollRef = el)} flexGrow={1}>
+        <box border borderColor={border("preview")} title={activeFile() || "preview"} flexGrow={1} flexShrink={1} minHeight={0}>
+          <scrollbox ref={(el: any) => (scrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
             <markdown content={previewText()} syntaxStyle={markdownStyle()} />
           </scrollbox>
         </box>
       </box>
-      <text>
+      <text flexShrink={0}>
         <span style={{ fg: C.muted } as any}>{`q sai · / busca · ^h/^l colunas · ^j/^k ponte/memória · j/k navega · e liga/desliga · r rescan · ${status()}`}</span>
       </text>
     </box>

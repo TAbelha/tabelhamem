@@ -44,3 +44,27 @@ test("frame nunca excede a altura pedida mesmo com muitas memórias", async () =
   const lines = setup.captureCharFrame().trimEnd().split("\n");
   expect(lines.length).toBeLessThanOrEqual(20);
 });
+
+test("projeto gigante não estica os outros painéis", async () => {
+  // blip-plugins tem o maior conteúdo; header, ponte e footer seguem
+  // visíveis e o frame respeita a altura mesmo assim.
+  const setup = await testRender(() => <App initialSlug="blip-plugins" />, { width: 120, height: 24 });
+  await setup.renderOnce();
+  const frame = setup.captureCharFrame();
+  const lines = frame.trimEnd().split("\n");
+  expect(lines.length).toBeLessThanOrEqual(24);
+  expect(frame).toContain("memória compartilhada");
+  expect(frame).toContain("Ponte");
+  expect(frame).toContain("rescan");
+});
+
+test("lista de projetos rola com j sem estourar a altura", async () => {
+  const setup = await testRender(() => <App />, { width: 120, height: 20 });
+  await setup.renderOnce();
+  const before = setup.captureCharFrame();
+  for (let i = 0; i < 15; i++) setup.mockInput.pressKey("j");
+  await setup.renderOnce();
+  const after = setup.captureCharFrame();
+  expect(after.trimEnd().split("\n").length).toBeLessThanOrEqual(20);
+  expect(after).not.toBe(before);
+});
