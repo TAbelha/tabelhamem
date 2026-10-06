@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# Rebuilds and reinstalls the tamem binary to ~/.local/bin after every
-# commit, so the local command never goes stale waiting for someone to
-# remember to rebuild it after a release.
+# Garante que o comando `tamem` (v2, TypeScript) esteja instalado em
+# ~/.local/bin após cada commit. O binário Go do tamem v1 foi descontinuado;
+# este hook só reinstala o wrapper, sem compilar nada.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 target="$HOME/.local/bin/tamem"
 
-if go build -o "$target" "$repo_root/cmd/tamem"; then
-	echo "post-commit: reinstalled $target"
-else
-	echo "post-commit: WARNING - failed to rebuild $target (repo still builds fine, this is just the local install)" >&2
-fi
+cat > "$target" <<EOF
+#!/usr/bin/env bash
+# tamem v2: CLI/IPC do tabelhamem (TypeScript).
+set -euo pipefail
+BUN_BIN="/home/ianptkcs/.local/share/mise/installs/bun/latest/bin/bun"
+exec "\$BUN_BIN" "$repo_root/packages/ipc/src/cli.ts" "\$@"
+EOF
+chmod +x "$target"
+echo "post-commit: reinstalled $target (tamem v2 wrapper)"
