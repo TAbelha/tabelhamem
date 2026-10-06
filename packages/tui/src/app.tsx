@@ -345,7 +345,7 @@ export function App(props?: { initialSlug?: string }) {
       </text>
       <box flexDirection="row" flexGrow={1}>
         <box border borderColor={border("projects")} title={`Projetos · ${currentOrg()}`} width={34} flexShrink={0} minHeight={0}>
-          <scrollbox ref={(el: any) => (projScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
+          <scrollbox ref={(el: any) => (projScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0} scrollbarOptions={{ visible: false } as any}>
           <For each={rows()}>
             {(r, i) =>
               r.kind === "org" ? (
@@ -372,7 +372,7 @@ export function App(props?: { initialSlug?: string }) {
           </Show>
         </box>
         <box flexDirection="column" width={46} flexShrink={0} minHeight={0}>
-          <box border borderColor={border("bridge")} title="Ponte" minHeight={0}>
+          <box border borderColor={border("bridge")} title="Ponte" flexShrink={0}>
             <Show when={selected()} fallback={<text>sem seleção</text>}>
               <text>
                 <span style={{ fg: C.text } as any}>{`${selected()!.org ? selected()!.org + "/" : ""}${selected()!.slug}`}</span>
@@ -396,7 +396,7 @@ export function App(props?: { initialSlug?: string }) {
                 onSubmit={() => submitSearch()}
               />
             </Show>
-            <scrollbox ref={(el: any) => (fileScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
+            <scrollbox ref={(el: any) => (fileScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0} scrollbarOptions={{ visible: false } as any}>
             <Show
               when={mode() === "search"}
               fallback={
@@ -441,7 +441,7 @@ export function App(props?: { initialSlug?: string }) {
           </box>
         </box>
         <box border borderColor={border("preview")} title={activeFile() || "preview"} flexGrow={1} flexShrink={1} minHeight={0}>
-          <scrollbox ref={(el: any) => (scrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0}>
+          <scrollbox ref={(el: any) => (scrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0} scrollbarOptions={{ visible: false } as any}>
             <markdown content={previewText()} syntaxStyle={markdownStyle()} />
           </scrollbox>
         </box>
