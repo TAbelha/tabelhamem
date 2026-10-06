@@ -16,16 +16,6 @@ type Mode = "browse" | "search";
 type Focus = "projects" | "bridge" | "files" | "preview";
 type Middle = "bridge" | "files";
 
-interface OrgRow {
-  kind: "org";
-  org: string;
-}
-interface ProjRow {
-  kind: "proj";
-  proj: DiscoveredProject;
-}
-type Row = OrgRow | ProjRow;
-
 const PREVIEW_WIDTH = 300;
 const SLUG_WIDTH = 28;
 
@@ -64,7 +54,7 @@ export function App(props?: { initialSlug?: string }) {
   // Mantém o cursor visível nas listas roláveis.
   createEffect(() => {
     const y = cursor();
-    rows();
+    projects();
     try {
       projScrollRef?.scrollTo({ x: 0, y });
     } catch {}
@@ -79,23 +69,16 @@ export function App(props?: { initialSlug?: string }) {
     } catch {}
   });
 
-  const rows = createMemo<Row[]>(() => {
-    const out: Row[] = [];
-    let last = "\0";
-    for (const p of projects()) {
-      const label = p.org === "" ? "memória" : p.org;
-      if (label !== last) {
-        out.push({ kind: "org", org: label });
-        last = label;
-      }
-      out.push({ kind: "proj", proj: p });
-    }
-    return out;
+  const selected = createMemo(() => {
+    const list = projects();
+    if (list.length === 0) return null;
+    return list[Math.min(cursor(), list.length - 1)];
   });
 
-  const selected = createMemo(() => {
-    const r = rows()[cursor()];
-    return r && r.kind === "proj" ? r.proj : null;
+  // Label do grupo atual, fixa acima da lista: nunca rola pra fora.
+  const groupLabel = createMemo(() => {
+    const p = selected();
+    return `${p?.org === "" || !p ? "memória" : p.org}/`;
   });
 
   const currentOrg = createMemo(() => selected()?.org || "memória");
@@ -124,20 +107,13 @@ export function App(props?: { initialSlug?: string }) {
   const refresh = () => {
     const list = discoverProjects();
     setProjects(list);
-    const r = rows();
     let c = cursor();
-    if (c >= r.length) c = Math.max(0, r.length - 1);
+    if (c >= list.length) c = Math.max(0, list.length - 1);
     // Slug inicial (só teste): posiciona o cursor nele no primeiro refresh.
     if (!initialized && props?.initialSlug) {
       initialized = true;
-      const idx = r.findIndex((x) => x.kind === "proj" && x.proj.slug === props.initialSlug);
+      const idx = list.findIndex((p) => p.slug === props.initialSlug);
       if (idx >= 0) c = idx;
-    }
-    // Cursor nunca repousa num header: avança pro próximo projeto.
-    if (r.length > 0 && r[c]?.kind !== "proj") {
-      const next = r.findIndex((x, i) => i >= c && x.kind === "proj");
-      c = next >= 0 ? next : r.findIndex((x) => x.kind === "proj");
-      if (c < 0) c = 0;
     }
     setCursor(c);
     refreshFiles();
@@ -154,14 +130,9 @@ export function App(props?: { initialSlug?: string }) {
   };
 
   const moveCursor = (delta: number) => {
-    const r = rows();
-    if (r.length === 0) return;
-    let i = cursor();
-    for (let step = 0; step < r.length; step++) {
-      i = (i + delta + r.length) % r.length;
-      if (r[i].kind === "proj") break;
-    }
-    setCursor(i);
+    const n = projects().length;
+    if (n === 0) return;
+    setCursor((c) => (c + delta + n) % n);
     refreshFiles();
   };
 
@@ -179,7 +150,7 @@ export function App(props?: { initialSlug?: string }) {
   const jumpToResult = () => {
     const r = results()[resultIdx()];
     if (!r) return;
-    const idx = rows().findIndex((x) => x.kind === "proj" && x.proj.slug === r.project);
+    const idx = projects().findIndex((p) => p.slug === r.project);
     if (idx >= 0) {
       setCursor(idx);
       refreshFiles();
@@ -353,27 +324,24 @@ export function App(props?: { initialSlug?: string }) {
       </text>
       <box flexDirection="row" flexGrow={1}>
         <box border borderColor={border("projects")} title={`Projetos · ${currentOrg()}`} width={34} flexShrink={0} minHeight={0}>
+          <text flexShrink={0}>
+            <span style={{ fg: C.muted } as any}>{groupLabel()}</span>
+          </text>
           <scrollbox ref={(el: any) => (projScrollRef = el)} flexGrow={1} flexShrink={1} minHeight={0} scrollbarOptions={{ visible: false } as any}>
-          <For each={rows()}>
-            {(r, i) =>
-              r.kind === "org" ? (
-                <text>
-                  <span style={{ fg: C.muted } as any}>{`${r.org}/`}</span>
-                </text>
-              ) : (
-                <text>
-                  {i() === cursor() && focus() === "projects" ? (
-                    <span style={{ fg: C.primary } as any}>{`▸ ${slugLabel(r.proj.slug)} `}</span>
-                  ) : (
-                    <span style={{ fg: C.text } as any}>{`  ${slugLabel(r.proj.slug)} `}</span>
-                  )}
-                  <span style={{ fg: dotColor(r.proj.linked) } as any}>{dot(r.proj.linked)}</span>
-                </text>
-              )
-            }
+          <For each={projects()}>
+            {(p, i) => (
+              <text>
+                {i() === cursor() && focus() === "projects" ? (
+                  <span style={{ fg: C.primary } as any}>{`▸ ${slugLabel(p.slug)} `}</span>
+                ) : (
+                  <span style={{ fg: C.text } as any}>{`  ${slugLabel(p.slug)} `}</span>
+                )}
+                <span style={{ fg: dotColor(p.linked) } as any}>{dot(p.linked)}</span>
+              </text>
+            )}
           </For>
           </scrollbox>
-          <Show when={rows().length === 0}>
+          <Show when={projects().length === 0}>
             <text>
               <span style={{ fg: C.muted } as any}>(vazio)</span>
             </text>

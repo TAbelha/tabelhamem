@@ -36,13 +36,21 @@ test("abertura já seleciona o primeiro projeto", async () => {
   expect(frame).not.toContain("sem seleção");
 });
 
-test("agrupa por org com headers e mostra grupo atual no título", async () => {
+test("agrupa por org com label fixa e mostra grupo atual no título", async () => {
   const setup = await testRender(() => <App />, { width: 120, height: 34 });
   await setup.renderOnce();
   const frame = setup.captureCharFrame();
-  expect(frame).toContain("ea/");
+  expect(frame).toContain("memória/");
   expect(frame).toContain("tabelhamem");
   expect(frame).toContain("Projetos ·");
+});
+
+test("label acompanha o grupo do cursor", async () => {
+  const setup = await testRender(() => <App initialSlug="v2" />, { width: 120, height: 34 });
+  await setup.renderOnce();
+  const frame = setup.captureCharFrame();
+  expect(frame).toContain("ea/");
+  expect(frame).toContain("Projetos · ea");
 });
 
 test("preview rola com j e respeita a altura", async () => {
