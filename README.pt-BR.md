@@ -17,125 +17,84 @@
 
 ---
 
-## Por quê
+## O que é
 
-O Claude Code tem um sistema de memória automático e embutido: injeta um
-índice `MEMORY.md` por projeto mais arquivos-tópico tipados
-(`feedback_*.md`/`project_*.md`/`reference_*.md`/`user_*.md`, com
-frontmatter YAML) no início de cada sessão, guardados em
-`~/.claude/projects/<cwd-escapado>/memory/` — um diretório por diretório de
-trabalho exato, sem opção de configurar outro lugar. O OpenCode não tem
-diretório de memória por projeto, mas carrega o `AGENTS.md` no início de
-cada sessão — o `tamem` usa isso pra ensinar a ele o mesmo armazenamento.
+O `tabelhamem` mantém um armazenamento de memória único pros seus agentes de
+código: `~/agent-memory/<projeto>/`, markdown puro com frontmatter YAML. O
+Claude Code alcança via symlink (I/O de arquivo transparente); o OpenCode
+alcança via arquivo pointer `.tabelhamem.md` mais um plugin nativo que injeta
+memória no system prompt, captura atividade de ferramentas e escreve resumos
+estruturados de sessão com uso de tokens/custo — sem chamada de LLM, custo
+zero. Uma TUI de terminal (OpenTUI + Solid) navega, busca e liga projetos, e
+um CLI scriptável `tamem ipc ... --json` cobre automação.
 
-O `tamem` faz a ponte entre os dois apontando ambos pro mesmo armazenamento
-em markdown puro: `~/agent-memory/<projeto>/`, irmão de `~/jobs` (automação
-do próprio usuário, não amarrada a nenhuma ferramenta específica). O
-diretório de memória do Claude Code vira um symlink pra lá (transparente —
-o Claude só faz I/O de arquivo normal); o OpenCode lê/escreve no mesmo lugar
-através de um arquivo pointer `.tabelhamem.md` que o `tamem` mantém na raiz
-do repo — o link nunca cria nem edita o `AGENTS.md` do repo.
+## Como funciona
 
-Quando o repo é um repositório git, o `tamem` detecta automaticamente todos
-os worktrees via `git worktree list` e liga, desfaz ou confere a saúde da
-ponte pra cada um deles em uma única invocação, sem precisar rodar o
-comando por worktree.
+1. `tamem ipc link project=<slug> repo=<path>` migra a memória existente do
+   Claude Code pro armazenamento compartilhado, faz o symlink do diretório
+   de memória do Claude pra lá, escreve o pointer `.tabelhamem.md` (nunca
+   toca no `AGENTS.md`) e adiciona o pointer ao gitignore. Vale pra todos
+   os worktrees do repo.
+2. O plugin OpenCode (`packages/plugin/src/opencode.js`, instalado em
+   `~/.config/opencode/plugins/`) injeta a memória compartilhada em cada
+   chamada do modelo, expõe as tools `memory_search`/`memory_write` e grava
+   um resumo da sessão em `session.idle`/`session.compacted`/`session.deleted`.
+3. A TUI (`tamem`, sem argumentos) lista projetos autodescobertos agrupados
+   por diretório, mostra a saúde da ponte, busca na memória e liga/desliga
+   pontes com `e`.
 
-## Instalação
+## Rodando localmente
 
-```bash
-git clone https://github.com/TAbelha/tabelhamem.git
-cd tabelhamem
+Stack: monorepo TypeScript (turborepo), Bun como runtime e package manager.
+
+```sh
 bun install
+bun run build
+bun run test
 ```
 
 O comando `tamem` é um wrapper em `packages/ipc/src/cli.ts`
-(ver `~/.local/bin/tamem`).
+(ver `~/.local/bin/tamem`). O plugin OpenCode instala com
+`packages/plugin/install.sh`.
 
-### Desenvolvimento local
+Outros comandos úteis:
 
-Um hook `post-commit` em `.githooks/` reinstala o wrapper do `tamem` em
-`~/.local/bin/tamem` a cada commit, então o comando local nunca fica
-desatualizado. O git não ativa o `.githooks/` de um repo sozinho — rode isso
-uma vez por clone:
-
-```bash
-git config core.hooksPath .githooks
+```sh
+tamem ipc list --json      # projetos descobertos
+tamem ipc search query=x   # busca textual na memória
+tamem ipc health           # saúde da ponte de cada projeto
 ```
 
-## Uso
+## Desenvolvimento
 
-Rodar `tamem` sem argumentos abre a TUI interativa pra navegar, buscar,
-ligar e desligar projetos. O subcomando `ipc` continua disponível pra
-scripts.
+Stack e comandos: ver _Rodando localmente_ acima. Testes:
 
-### TUI
-
-```bash
-# Abre a TUI interativa (o mesmo que `tamem tui`)
-tamem
+```sh
+bun run test      # unitários + e2e (vitest) + smoke da tui (bun test)
 ```
 
-Projetos são descobertos automaticamente em
-`~/codigo/{ea,wiv,tabelha,ufmg,pessoal,cpdq}/`, agrupados por diretório,
-mais slugs de memória sem repo. Sem arquivo de config.
+## Changelog
 
-| Tecla | Ação |
-|---|---|
-| `q` | Sair |
-| `/` | Buscar memória |
-| `ctrl+h` / `ctrl+l` | Mover entre colunas |
-| `ctrl+j` / `ctrl+k` | Focar memória / ponte |
-| `j` / `k` | Navegar / rolar no painel focado |
-| `enter` | Mover pra direita / abrir resultado da busca |
-| `e` | Ligar/desligar o projeto selecionado |
-| `r` | Rescan projetos |
-| `esc` | Voltar / sair |
+Veja [CHANGELOG.md](CHANGELOG.md) para o histórico de versões.
 
-### IPC (JSON scriptável)
+## Apoie o projeto
 
-```bash
-# Liga a memória de um projeto: migra os arquivos de memória do Claude Code
-# já existentes pra ~/agent-memory/<projeto>/, faz o symlink do diretório
-# do Claude Code pra lá, e escreve/atualiza as instruções no
-# .tabelhamem.md do repo (nunca toca no AGENTS.md). Idempotente.
-tamem ipc link project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
+- **Global**: [ko-fi.com/ianptkcs](https://ko-fi.com/ianptkcs)
+- **Brasil (Pix)**: escaneie o QR abaixo ou copie o código
 
-# Desfaz: o diretório de memória do Claude Code em <repo> volta a ter uma
-# cópia real do conteúdo compartilhado (o diretório compartilhado em si não
-# é tocado), e o arquivo pointer é removido.
-tamem ipc unlink project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
+  <img src="pix-qr.png" alt="Pix QR" width="200" />
 
-# Confere a saúde da ponte pra um projeto
-tamem ipc status project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
+  <details><summary>Código Pix (copiar)</summary>
 
-# Lista todos os projetos já em ponte
-tamem ipc list --json
+  ```
+  00020126580014BR.GOV.BCB.PIX01365ad933b0-dcdc-4525-a736-0759902aeec65204000053039865802BR5925Ian Patrick da Costa Soar6009SAO PAULO62140510tQA85x6Dov63041FB6
+  ```
 
-# Busca na memória de todos os projetos já ligados
-tamem ipc search query=worktree type=feedback --json
-```
+  </details>
 
-## Métodos IPC
+## Licença
 
-| Método | Filtros | Descrição |
-|---|---|---|
-| `global` | (nenhum) | Configura o armazenamento global compartilhado: cria `~/agent-memory/global/`, migra o AGENTS.md existente, cria symlink do Claude Code e atualiza o pointer do OpenCode |
-| `link` | `project=`, `repo=` | Cria/atualiza a ponte de um projeto: migra + symlink + pointer `.tabelhamem.md` (com gitignore automático) |
-| `unlink` | `project=`, `repo=` | Desfaz o `link` de um repo: restaura um diretório real, remove o pointer, não mexe no diretório compartilhado |
-| `status` | `project=`, `repo=` (opcional) | Reporta se o symlink e o pointer estão certos |
-| `list` | (nenhum) | Lista projetos descobertos com repo e status real da ponte |
-| `search` | `query=`, `type=` (opcional), `project=` (opcional) | Busca texto em todos os projetos já ligados |
-
-## Limitações
-
-- O lado OpenCode da ponte é dirigido por instrução: o modelo lê o
-  pointer `.tabelhamem.md` (e o plugin OpenCode injeta memória
-  automaticamente), mas ler/escrever de fato o armazenamento
-  compartilhado ainda depende do modelo seguir essa instrução a cada
-  sessão.
-- A detecção de worktrees requer `git` no `$PATH`. Se `git` não estiver
-  disponível, o `tamem` opera em um único diretório (o caminho de `repo=`).
-- `link` mescla arquivos pré-existentes no armazenamento compartilhado sem
-  sobrescrever, e `unlink` restaura uma cópia real de volta — sem confronto
-  manual nos dois sentidos.
+[AGPL-3.0](LICENSE) — copyleft forte: você pode usar, modificar e até
+hospedar o tabelhamem comercialmente, mas qualquer versão modificada,
+incluindo uma rodando como serviço de rede (SaaS), tem que continuar open
+source sob a mesma licença.
