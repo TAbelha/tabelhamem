@@ -16,6 +16,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
+import { execFileSync } from "node:child_process"
 
 const MAX_CONTEXT_CHARS = 3000 // teto de injecao por model call (~750 tokens)
 const RECENT_SESSIONS = 3
@@ -24,6 +25,29 @@ const MAX_DIGESTS_PER_SESSION = 400 // evita regravar um digest infinitamente
 
 function sharedDir(slug) {
   return path.join(os.homedir(), "agent-memory", slug)
+}
+
+// Slug do projeto a partir do diretório da sessão. Usa o checkout principal
+// do git (primeira linha de `git worktree list`), então sessões dentro de
+// worktrees de branch ou subdiretórios caem no slug do repo, não no nome do
+// branch. Sem git: home vira "global", resto usa o basename.
+export function resolveSlug(directory) {
+  try {
+    const out = execFileSync("git", ["-C", directory, "worktree", "list", "--porcelain"], {
+      encoding: "utf8",
+      timeout: 2000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+    const main = out
+      .split("\n")
+      .find((l) => l.startsWith("worktree "))
+    if (main) {
+      const name = path.basename(main.slice("worktree ".length).trim())
+      if (name) return name
+    }
+  } catch {}
+  if (directory === os.homedir()) return "global"
+  return path.basename(directory)
 }
 
 function shortId(id) {
@@ -105,7 +129,7 @@ export default {
 
   async setup(ctx) {
     const directory = ctx.location?.directory ?? process.cwd()
-    const slug = path.basename(directory)
+    const slug = resolveSlug(directory)
     const shared = sharedDir(slug)
 
     // Nao cria o diretor aqui: setup roda por cada local aberto, entao criar no
