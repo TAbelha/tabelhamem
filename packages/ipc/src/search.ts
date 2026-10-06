@@ -2,6 +2,7 @@ import type { IPCArgs, SearchMatch } from './types.js';
 import { getSharedDir } from './store.js';
 import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 
 export function ipcSearch(args: IPCArgs): number {
   const { query, type, project } = args.filters;
@@ -11,6 +12,13 @@ export function ipcSearch(args: IPCArgs): number {
     return 1;
   }
 
+  const results = searchMemory(query, type || '', project || '');
+
+  console.log(JSON.stringify(results, null, 2));
+  return 0;
+}
+
+export function searchMemory(query: string, type: string, project: string): SearchMatch[] {
   const projects = project ? [project] : listProjects();
   const results: SearchMatch[] = [];
 
@@ -40,8 +48,7 @@ export function ipcSearch(args: IPCArgs): number {
     }
   }
 
-  console.log(JSON.stringify(results, null, 2));
-  return 0;
+  return results;
 }
 
 function listProjects(): string[] {
@@ -51,8 +58,4 @@ function listProjects(): string[] {
   return readdirSync(agentMemoryDir, { withFileTypes: true })
     .filter(e => e.isDirectory())
     .map(e => e.name);
-}
-
-function homedir(): string {
-  return process.env.HOME || '';
 }

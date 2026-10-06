@@ -36,3 +36,34 @@ export function ipcList(_args: IPCArgs): number {
   console.log(JSON.stringify(projects, null, 2));
   return 0;
 }
+
+export function listProjects(): ProjectInfo[] {
+  const agentMemoryDir = join(homedir(), 'agent-memory');
+
+  if (!existsSync(agentMemoryDir)) {
+    return [];
+  }
+
+  const entries = readdirSync(agentMemoryDir, { withFileTypes: true });
+  const projects: ProjectInfo[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const slug = entry.name;
+    const sharedDir = getSharedDir(slug);
+
+    projects.push({
+      slug,
+      repo: '',
+      sharedDir,
+      topicCount: getTopicCount(slug),
+      claudeLinked: checkClaudeSymlink(slug),
+      opencodeLinked: checkAgentsSection(slug),
+      agentsSection: checkAgentsSection(slug),
+      worktreeCount: 0,
+    });
+  }
+
+  return projects;
+}
