@@ -10,12 +10,14 @@ test("renderiza cabeçalho e painéis", async () => {
   expect(frame).toContain("Projetos");
   expect(frame).toContain("Memória");
   expect(frame).toContain("Ponte");
+  expect(frame).toContain("liga/desliga");
 });
 
-test("mostra org/slug por linha e grupo atual no título", async () => {
+test("agrupa por org com headers e mostra grupo atual no título", async () => {
   const setup = await testRender(() => <App />, { width: 120, height: 34 });
   await setup.renderOnce();
   const frame = setup.captureCharFrame();
-  expect(frame).toContain("tabelha/tabelhamem");
+  expect(frame).toContain("ea/");
+  expect(frame).toContain("tabelhamem");
   expect(frame).toContain("Projetos ·");
 });

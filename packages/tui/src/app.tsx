@@ -10,19 +10,29 @@ import {
 } from "@tabelhamem/ipc";
 import type { DiscoveredProject, SearchMatch } from "@tabelhamem/ipc";
 import { C, markdownStyle } from "./theme.jsx";
+import { windowRows } from "./rows.jsx";
 
 type Mode = "browse" | "search";
 // Ponte e memória dividem a coluna do meio; preview é a terceira coluna.
 type Focus = "projects" | "bridge" | "files" | "preview";
 type Middle = "bridge" | "files";
 
+interface OrgRow {
+  kind: "org";
+  org: string;
+}
+interface ProjRow {
+  kind: "proj";
+  proj: DiscoveredProject;
+}
+type Row = OrgRow | ProjRow;
+
 const ROW_WINDOW = 41;
 const PREVIEW_LINES = 60;
-const ROW_WIDTH = 27;
+const SLUG_WIDTH = 28;
 
-function rowLabel(p: DiscoveredProject): string {
-  const full = p.org ? `${p.org}/${p.slug}` : p.slug;
-  return full.length > ROW_WIDTH ? full.slice(0, ROW_WIDTH - 1) + "…" : full;
+function slugLabel(slug: string): string {
+  return slug.length > SLUG_WIDTH ? slug.slice(0, SLUG_WIDTH - 1) + "…" : slug;
 }
 
 export function App() {
@@ -42,10 +52,23 @@ export function App() {
 
   let inputRef: any = null;
 
+  const rows = createMemo<Row[]>(() => {
+    const out: Row[] = [];
+    let last = "\0";
+    for (const p of projects()) {
+      const label = p.org === "" ? "memória" : p.org;
+      if (label !== last) {
+        out.push({ kind: "org", org: label });
+        last = label;
+      }
+      out.push({ kind: "proj", proj: p });
+    }
+    return out;
+  });
+
   const selected = createMemo(() => {
-    const list = projects();
-    if (list.length === 0) return null;
-    return list[Math.min(cursor(), list.length - 1)];
+    const r = rows()[cursor()];
+    return r && r.kind === "proj" ? r.proj : null;
   });
 
   const currentOrg = createMemo(() => selected()?.org || "memória");
@@ -70,18 +93,13 @@ export function App() {
     return lines.slice(s, s + PREVIEW_LINES).join("\n");
   });
 
-  const visibleProjects = createMemo(() => {
-    const all = projects();
-    if (all.length <= ROW_WINDOW) return all;
-    let start = cursor() - Math.floor(ROW_WINDOW / 2);
-    start = Math.max(0, Math.min(start, all.length - ROW_WINDOW));
-    return all.slice(start, start + ROW_WINDOW);
-  });
+  const visibleRows = createMemo(() => windowRows(rows(), cursor(), ROW_WINDOW));
 
   const refresh = () => {
     const list = discoverProjects();
     setProjects(list);
-    if (cursor() >= list.length) setCursor(Math.max(0, list.length - 1));
+    const r = rows();
+    if (cursor() >= r.length) setCursor(Math.max(0, r.length - 1));
     refreshFiles();
     setStatus(`${list.length} repos em ~/codigo + memória`);
   };
@@ -91,6 +109,18 @@ export function App() {
     setFiles(p ? listTopicFiles(p.slug) : []);
     setFileCursor(0);
     setScroll(0);
+  };
+
+  const moveCursor = (delta: number) => {
+    const r = rows();
+    if (r.length === 0) return;
+    let i = cursor();
+    for (let step = 0; step < r.length; step++) {
+      i = (i + delta + r.length) % r.length;
+      if (r[i].kind === "proj") break;
+    }
+    setCursor(i);
+    refreshFiles();
   };
 
   const runSearch = (q: string) => {
@@ -107,7 +137,7 @@ export function App() {
   const jumpToResult = () => {
     const r = results()[resultIdx()];
     if (!r) return;
-    const idx = projects().findIndex((p) => p.slug === r.project);
+    const idx = rows().findIndex((x) => x.kind === "proj" && x.proj.slug === r.project);
     if (idx >= 0) {
       setCursor(idx);
       refreshFiles();
@@ -120,34 +150,23 @@ export function App() {
     setScroll(0);
   };
 
-  const doLink = () => {
+  const doToggle = () => {
     const p = selected();
     if (!p) return;
     if (p.memoryOnly || !p.repo) {
-      setStatus(`${p.slug}: sem repo, nada pra ligar`);
+      setStatus(`${p.slug}: sem repo, nada pra alternar`);
       return;
     }
     try {
-      linkRepo(p.repo, p.slug);
-      setStatus(`${p.slug}: ligado`);
+      if (p.linked) {
+        unlinkRepo(p.repo, p.slug);
+        setStatus(`${p.slug}: desligado`);
+      } else {
+        linkRepo(p.repo, p.slug);
+        setStatus(`${p.slug}: ligado`);
+      }
     } catch (err) {
-      setStatus(`${p.slug}: falha ao ligar (${err})`);
-    }
-    refresh();
-  };
-
-  const doUnlink = () => {
-    const p = selected();
-    if (!p) return;
-    if (p.memoryOnly || !p.repo) {
-      setStatus(`${p.slug}: sem repo, nada pra desligar`);
-      return;
-    }
-    try {
-      unlinkRepo(p.repo, p.slug);
-      setStatus(`${p.slug}: desligado`);
-    } catch (err) {
-      setStatus(`${p.slug}: falha ao desligar (${err})`);
+      setStatus(`${p.slug}: falha (${err})`);
     }
     refresh();
   };
@@ -170,14 +189,9 @@ export function App() {
 
   const step = (delta: number) => {
     switch (focus()) {
-      case "projects": {
-        const n = projects().length;
-        if (n > 0) {
-          setCursor((c) => (c + delta + n) % n);
-          refreshFiles();
-        }
+      case "projects":
+        moveCursor(delta);
         break;
-      }
       case "files":
         if (mode() === "search") {
           const n = results().length;
@@ -276,11 +290,8 @@ export function App() {
       case "r":
         if (mode() === "browse") refresh();
         break;
-      case "l":
-        if (mode() === "browse") doLink();
-        break;
-      case "u":
-        if (mode() === "browse") doUnlink();
+      case "e":
+        if (mode() === "browse") doToggle();
         break;
     }
   });
@@ -299,22 +310,25 @@ export function App() {
       </text>
       <box flexDirection="row" flexGrow={1}>
         <box border borderColor={border("projects")} title={`Projetos · ${currentOrg()}`} width={34} flexShrink={0}>
-          <For each={visibleProjects()}>
-            {(p) => {
-              const idx = projects().indexOf(p);
-              return (
+          <For each={visibleRows().list}>
+            {(r, i) =>
+              r.kind === "org" ? (
                 <text>
-                  {idx === cursor() && focus() === "projects" ? (
-                    <span style={{ fg: C.primary } as any}>{`▸ ${rowLabel(p)} `}</span>
-                  ) : (
-                    <span style={{ fg: C.text } as any}>{`  ${rowLabel(p)} `}</span>
-                  )}
-                  <span style={{ fg: dotColor(p.linked) } as any}>{dot(p.linked)}</span>
+                  <span style={{ fg: C.muted } as any}>{`${r.org}/`}</span>
                 </text>
-              );
-            }}
+              ) : (
+                <text>
+                  {i() + visibleRows().offset === cursor() && focus() === "projects" ? (
+                    <span style={{ fg: C.primary } as any}>{`▸ ${slugLabel(r.proj.slug)} `}</span>
+                  ) : (
+                    <span style={{ fg: C.text } as any}>{`  ${slugLabel(r.proj.slug)} `}</span>
+                  )}
+                  <span style={{ fg: dotColor(r.proj.linked) } as any}>{dot(r.proj.linked)}</span>
+                </text>
+              )
+            }
           </For>
-          <Show when={projects().length === 0}>
+          <Show when={rows().length === 0}>
             <text>
               <span style={{ fg: C.muted } as any}>(vazio)</span>
             </text>
@@ -392,7 +406,7 @@ export function App() {
         </box>
       </box>
       <text>
-        <span style={{ fg: C.muted } as any}>{`q sai · / busca · ^h/^l colunas · ^j/^k ponte/memória · j/k navega · l liga · u desliga · r rescan · ${status()}`}</span>
+        <span style={{ fg: C.muted } as any}>{`q sai · / busca · ^h/^l colunas · ^j/^k ponte/memória · j/k navega · e liga/desliga · r rescan · ${status()}`}</span>
       </text>
     </box>
   );
