@@ -22,6 +22,21 @@ test("agrupa por org com headers e mostra grupo atual no título", async () => {
   expect(frame).toContain("Projetos ·");
 });
 
+test("preview rola com j e respeita a altura", async () => {
+  const setup = await testRender(() => <App />, { width: 120, height: 20 });
+  await setup.renderOnce();
+  const before = setup.captureCharFrame();
+  // Foca o preview (projects -> meio -> preview) e rola pra baixo.
+  setup.mockInput.pressKey("l", { ctrl: true });
+  setup.mockInput.pressKey("l", { ctrl: true });
+  await setup.renderOnce();
+  for (let i = 0; i < 10; i++) setup.mockInput.pressKey("j");
+  await setup.renderOnce();
+  const after = setup.captureCharFrame();
+  expect(after.trimEnd().split("\n").length).toBeLessThanOrEqual(20);
+  expect(after).not.toBe(before);
+});
+
 test("frame nunca excede a altura pedida mesmo com muitas memórias", async () => {
   // blip-plugins tem 80+ arquivos; sem janela a coluna esticava tudo.
   const setup = await testRender(() => <App />, { width: 120, height: 20 });

@@ -1,4 +1,4 @@
-import { createSignal, createMemo, For, Show } from "solid-js";
+import { createSignal, createMemo, createEffect, For, Show } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import {
   discoverProjects,
@@ -29,7 +29,6 @@ type Row = OrgRow | ProjRow;
 
 const ROW_WINDOW = 41;
 const FILE_WINDOW = 30;
-const PREVIEW_LINES = 60;
 const PREVIEW_WIDTH = 300;
 const SLUG_WIDTH = 28;
 
@@ -44,7 +43,6 @@ export function App() {
   const [middle, setMiddle] = createSignal<Middle>("files");
   const [files, setFiles] = createSignal<string[]>([]);
   const [fileCursor, setFileCursor] = createSignal(0);
-  const [scroll, setScroll] = createSignal(0);
   const [mode, setMode] = createSignal<Mode>("browse");
   const [editing, setEditing] = createSignal(false);
   const [query, setQuery] = createSignal("");
@@ -53,6 +51,16 @@ export function App() {
   const [status, setStatus] = createSignal("");
 
   let inputRef: any = null;
+  let scrollRef: any = null;
+
+  // Volta ao topo do preview ao trocar de arquivo/projeto.
+  createEffect(() => {
+    activeFile();
+    selected();
+    try {
+      scrollRef?.scrollTo(0);
+    } catch {}
+  });
 
   const rows = createMemo<Row[]>(() => {
     const out: Row[] = [];
@@ -90,10 +98,8 @@ export function App() {
     const p = selected();
     const f = activeFile();
     if (!p || !f) return "(nenhum arquivo de memória)";
-    const lines = readTopicFile(p.slug, f).split("\n");
-    const s = Math.min(scroll(), Math.max(0, lines.length - 1));
-    return lines
-      .slice(s, s + PREVIEW_LINES)
+    return readTopicFile(p.slug, f)
+      .split("\n")
       .map((l) => (l.length > PREVIEW_WIDTH ? l.slice(0, PREVIEW_WIDTH - 1) + "…" : l))
       .join("\n");
   });
@@ -119,7 +125,6 @@ export function App() {
     const p = selected();
     setFiles(p ? listTopicFiles(p.slug) : []);
     setFileCursor(0);
-    setScroll(0);
   };
 
   const moveCursor = (delta: number) => {
@@ -158,7 +163,6 @@ export function App() {
     setMode("browse");
     setResults([]);
     setFocus("preview");
-    setScroll(0);
   };
 
   const doToggle = () => {
@@ -213,7 +217,9 @@ export function App() {
         }
         break;
       case "preview":
-        setScroll((s) => Math.max(0, s + delta));
+        try {
+          scrollRef?.scrollBy({ x: 0, y: delta });
+        } catch {}
         break;
       case "bridge":
         break;
@@ -413,7 +419,9 @@ export function App() {
           </box>
         </box>
         <box border borderColor={border("preview")} title={activeFile() || "preview"} flexGrow={1}>
-          <markdown content={previewText()} syntaxStyle={markdownStyle()} />
+          <scrollbox ref={(el: any) => (scrollRef = el)} flexGrow={1}>
+            <markdown content={previewText()} syntaxStyle={markdownStyle()} />
+          </scrollbox>
         </box>
       </box>
       <text>
