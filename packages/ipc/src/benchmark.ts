@@ -1,8 +1,9 @@
 import { performance } from 'perf_hooks';
 import { execSync } from 'child_process';
-import { writeFileSync, mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync, mkdirSync, rmSync, readFileSync } from 'fs';
+import { join, dirname } from 'path';
 import { tmpdir } from 'os';
+import { fileURLToPath } from 'url';
 
 interface BenchmarkResult {
   operation: string;
@@ -52,6 +53,18 @@ export function runBenchmarks(): void {
   mkdirSync(sharedDir, { recursive: true });
   mkdirSync(repoDir, { recursive: true });
 
+  // O CLI mora ao lado deste arquivo; os comandos shell usam caminho
+  // absoluto pra não depender do cwd de quem invoca.
+  const cli = join(dirname(fileURLToPath(import.meta.url)), 'cli.ts');
+  // HOME apontado pro temp dir: os comandos medem os dados de teste,
+  // não a memória real do usuário.
+  const run = (args: string) =>
+    execSync(`bun run "${cli}" ${args}`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      env: { ...process.env, HOME: testDir },
+    });
+
   // Setup: create test data
   for (let i = 0; i < 100; i++) {
     writeFileSync(join(sharedDir, `feedback_${i}.md`), `# Feedback ${i}\n\nConteúdo de teste ${i}\n`);
@@ -61,47 +74,35 @@ export function runBenchmarks(): void {
 
   // Benchmark: search
   const searchResult = benchmark('search', () => {
-    execSync(
-      `bun run packages/ipc/src/index.ts ipc search query=test --json`,
-      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
-    );
+    run(`ipc search query=test --json`);
   }, 50);
 
   console.log(`Search: avg=${searchResult.avgTimeMs.toFixed(2)}ms p50=${searchResult.p50Ms.toFixed(2)}ms p95=${searchResult.p95Ms.toFixed(2)}ms`);
 
   // Benchmark: list
   const listResult = benchmark('list', () => {
-    execSync(
-      `bun run packages/ipc/src/index.ts ipc list --json`,
-      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
-    );
+    run(`ipc list --json`);
   }, 100);
 
   console.log(`List: avg=${listResult.avgTimeMs.toFixed(2)}ms p50=${listResult.p50Ms.toFixed(2)}ms p95=${listResult.p95Ms.toFixed(2)}ms`);
 
   // Benchmark: status
   const statusResult = benchmark('status', () => {
-    execSync(
-      `bun run packages/ipc/src/index.ts ipc status project=bench-project --json`,
-      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
-    );
+    run(`ipc status project=bench-project --json`);
   }, 100);
 
   console.log(`Status: avg=${statusResult.avgTimeMs.toFixed(2)}ms p50=${statusResult.p50Ms.toFixed(2)}ms p95=${statusResult.p95Ms.toFixed(2)}ms`);
 
   // Benchmark: health
   const healthResult = benchmark('health', () => {
-    execSync(
-      `bun run packages/ipc/src/index.ts ipc health`,
-      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
-    );
+    run(`ipc health`);
   }, 50);
 
   console.log(`Health: avg=${healthResult.avgTimeMs.toFixed(2)}ms p50=${healthResult.p50Ms.toFixed(2)}ms p95=${healthResult.p95Ms.toFixed(2)}ms`);
 
   // Token estimation
   const sampleFile = join(sharedDir, 'feedback_0.md');
-  const content = require('fs').readFileSync(sampleFile, 'utf-8');
+  const content = readFileSync(sampleFile, 'utf-8');
   const tokens = Math.ceil(content.length / 4);
 
   console.log(`\nToken estimation:`);
@@ -115,6 +116,6 @@ export function runBenchmarks(): void {
   console.log('\n=== Benchmarks complete ===');
 }
 
-if (require.main === module) {
+if (import.meta.main) {
   runBenchmarks();
 }

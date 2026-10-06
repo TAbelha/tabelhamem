@@ -42,8 +42,14 @@ export function ensureClaudeSymlink(slug: string, sharedDir: string): void {
   mkdirSync(claudeParent, { recursive: true });
 
   if (existsSync(claudeDir)) {
-    const stats = readFileSync(claudeDir, 'utf-8');
-    if (stats.includes(sharedDir)) return;
+    try {
+      const stats = readFileSync(claudeDir, 'utf-8');
+      if (stats.includes(sharedDir)) return;
+    } catch {
+      // Diretório real (não symlink): não remove nem migra por aqui, só
+      // evita o crash do readFileSync em diretório (EISDIR).
+      return;
+    }
   }
 
   try {
@@ -58,10 +64,13 @@ export function removeClaudeSymlink(slug: string): void {
   const repo = getRepoFromConfig(slug);
   if (!repo) return;
 
+  // Só remove se for symlink: nunca apaga um diretório real com conteúdo.
   const claudeDir = claudeMemoryDir(repo);
-  if (existsSync(claudeDir)) {
-    rmSync(claudeDir, { recursive: true, force: true });
-  }
+  try {
+    if (lstatSync(claudeDir).isSymbolicLink()) {
+      rmSync(claudeDir, { recursive: true, force: true });
+    }
+  } catch { /* ausente, nada a fazer */ }
 }
 
 export function checkClaudeSymlink(slug: string): boolean {

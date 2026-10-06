@@ -21,7 +21,6 @@ import { execFileSync } from "node:child_process"
 const MAX_CONTEXT_CHARS = 3000 // teto de injecao por model call (~750 tokens)
 const RECENT_SESSIONS = 3
 const INTERESTING_TOOLS = new Set(["write", "edit", "patch", "bash", "memory_write"])
-const MAX_DIGESTS_PER_SESSION = 400 // evita regravar um digest infinitamente
 
 function sharedDir(slug) {
   return path.join(os.homedir(), "agent-memory", slug)
@@ -108,16 +107,14 @@ function appendObservation(dir, entry) {
 }
 
 function writeSessionDigest(dir, digest) {
+  // Um arquivo por sessão/dia, sempre reescrito por inteiro: session.idle
+  // dispara várias vezes e o append duplicaria o resumo a cada idle. Como
+  // o uso acumula no Map, cada reescrita reflete o estado mais recente.
   try {
     fs.mkdirSync(dir, { recursive: true })
     const day = digest.ended.slice(0, 10)
     const file = path.join(dir, `session-${day}-${digest.short}.md`)
-
-    let existing = ""
-    if (fs.existsSync(file)) existing = fs.readFileSync(file, "utf-8")
-    if (existing.split("\n").length > MAX_DIGESTS_PER_SESSION) return
-
-    fs.appendFileSync(file, digest.body)
+    fs.writeFileSync(file, digest.body)
     return file
   } catch (err) {
     console.error("[tabelhamem] falha ao gravar resumo de sessao:", err?.message ?? err)
@@ -206,7 +203,12 @@ export default {
           required: ["content"],
         },
         execute: async (input) => {
-          const type = String(input?.type || "feedback")
+          // type restrito à lista conhecida: vem do modelo e compõe um
+          // caminho de arquivo, então "../x" escaparia do projeto.
+          const rawType = String(input?.type || "feedback");
+          const type = /^(session|feedback|project|reference|user)$/.test(rawType)
+            ? rawType
+            : "feedback";
           const stamp = new Date().toISOString().replace(/[:.]/g, "-")
           const file = path.join(shared, `${type}-${stamp}.md`)
           const body = `---\ntype: ${type}\nproject: ${slug}\ncreated: ${new Date().toISOString()}\n---\n\n${input?.content ?? ""}\n`
@@ -312,6 +314,7 @@ export default {
             short: shortId(sid),
             body: `${front}${sections.join("\n")}\n`,
           })
+          usage.delete(sid)
           if (file) console.error(`[tabelhamem] resumo gravado: ${file}`)
         }
       } catch (err) {

@@ -15,10 +15,4 @@ fi
 mkdir -p "$DEST_DIR"
 cp "$SRC" "$DEST"
 echo "plugin instalado em $DEST"
-
-if command -v opencode >/dev/null 2>&1; then
-  echo "reiniciando servico do opencode..."
-  opencode service restart >/dev/null 2>&1 || true
-  echo "status:"
-  opencode service status 2>&1 | head -5 || true
-fi
+echo "(o opencode recarrega plugins locais sozinho; sem restart)"

@@ -91,17 +91,20 @@ test("lista de projetos rola com j sem estourar a altura", async () => {
 });
 
 test("ponte com slug longo tem 3 linhas separadas e sem scrollbar", async () => {
-  const setup = await testRender(() => <App initialSlug="bs-1028-contatos-retencao-enterprise" />, {
+  // gerador-ficha-tormenta20: slug longo real e estável (26 chars).
+  const setup = await testRender(() => <App initialSlug="gerador-ficha-tormenta20" />, {
     width: 120,
     height: 24,
   });
   await setup.renderOnce();
   const frame = setup.captureCharFrame();
   const lines = frame.split("\n");
-  // As 3 linhas da ponte aparecem em fileiras distintas, sem fusão.
-  expect(lines.some((l) => l.includes("contatos-retencao-enterprise"))).toBe(true);
-  expect(lines.some((l) => l.includes("○ agents"))).toBe(true);
+  // As 3 linhas da ponte aparecem em fileiras distintas, sem fusão:
+  // a linha do slug não contém os dots, e os dots/tópicos têm linha própria.
+  expect(lines.some((l) => l.includes("gerador-ficha-tormenta20"))).toBe(true);
+  expect(lines.some((l) => l.includes("agents"))).toBe(true);
   expect(lines.some((l) => l.includes("tópicos"))).toBe(true);
+  expect(lines.every((l) => !l.includes("gerador-ficha-tormenta20") || !l.includes("agents"))).toBe(true);
   expect(frame).not.toContain("█");
   expect(frame).not.toContain("▀");
 });

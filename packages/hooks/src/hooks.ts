@@ -1,5 +1,4 @@
 import type { HookConfig, SessionEvent } from './types.js';
-import { ipcLink } from '@tabelhamem/ipc';
 
 export function createHooks(config: HookConfig) {
   return {

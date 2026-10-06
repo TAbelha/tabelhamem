@@ -1,5 +1,6 @@
 import type { IPCArgs, HealthStatus } from './types.js';
-import { checkClaudeSymlink, checkAgentsSection, getSharedDir, getTopicCount } from './store.js';
+import { checkClaudeSymlink, checkAgentsSection, getSharedDir, getTopicCount, hasAgentsSectionAt } from './store.js';
+import { isRepoLinked } from './discover.js';
 
 export function ipcStatus(args: IPCArgs): number {
   const { project, repo } = args.filters;
@@ -10,8 +11,14 @@ export function ipcStatus(args: IPCArgs): number {
   }
 
   const sharedDir = getSharedDir(project);
-  const claudeLinked = checkClaudeSymlink(project);
-  const agentsSection = checkAgentsSection(project);
+  // Com repo explícito, checa direto nele. Sem repo, cai no caminho legado
+  // via config (que responde false sem ~/.config/tabelhamem/config.toml).
+  const claudeLinked = repo
+    ? isRepoLinked(repo, sharedDir)
+    : checkClaudeSymlink(project);
+  const agentsSection = repo
+    ? hasAgentsSectionAt(repo)
+    : checkAgentsSection(project);
   const topicCount = getTopicCount(project);
 
   const status: HealthStatus = {
