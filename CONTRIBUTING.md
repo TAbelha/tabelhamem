@@ -13,7 +13,7 @@ Open an [issue](../../issues/new/choose) using the appropriate template.
 
 1. Fork the repository.
 2. Create a branch off `main`.
-3. Run `go vet ./...`, `go test ./...` and `go build ./...` locally before opening the PR.
+3. Run `bun run build` and `bun run test` locally before opening the PR.
 4. Open the PR using the template — describe the what and the why of the
    change.
 

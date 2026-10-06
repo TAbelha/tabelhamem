@@ -6,31 +6,26 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  lint-and-test:
+  build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v7
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          go-version-file: go.mod
+          bun-version: latest
 
-      - name: Format
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "not gofmt-clean:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test ./...
+      - name: Install
+        run: bun install
 
       - name: Build
-        run: go build ./...
+        run: bun run build
+
+      - name: Test
+        run: bun run test

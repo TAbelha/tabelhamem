@@ -6,9 +6,9 @@
 
 [English](README.md) · **Português**
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TAbelhaDev/tabelhamem?style=flat-square&logo=go&logoColor=white&color=00ADD8)](go.mod)
-[![Built with Bubble Tea](https://img.shields.io/badge/built%20with-Bubble%20Tea-ff69b4?style=flat-square)](https://github.com/charmbracelet/bubbletea)
-[![Powered by tabelhatuiui](https://img.shields.io/badge/theme-tabelhatuiui-d6b4f7?style=flat-square)](https://github.com/TAbelhaDev/tabelhatuiui)
+[![TypeScript](https://img.shields.io/badge/language-TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](tsconfig.json)
+[![Built with Bun](https://img.shields.io/badge/built%20with-Bun-fbf0df?style=flat-square&logo=bun&logoColor=black)](https://bun.sh)
+[![Built with OpenTUI](https://img.shields.io/badge/built%20with-OpenTUI-ff69b4?style=flat-square)](https://github.com/anomalyco/opentui)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square)](LICENSE)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ianptkcs)
@@ -44,12 +44,17 @@ comando por worktree.
 ## Instalação
 
 ```bash
-go install github.com/TAbelhaDev/tabelhamem/cmd/tamem@latest
+git clone https://github.com/TAbelha/tabelhamem.git
+cd tabelhamem
+bun install
 ```
+
+O comando `tamem` é um wrapper em `packages/ipc/src/cli.ts`
+(ver `~/.local/bin/tamem`).
 
 ### Desenvolvimento local
 
-Um hook `post-commit` em `.githooks/` reconstrói e reinstala o `tamem` em
+Um hook `post-commit` em `.githooks/` reinstala o wrapper do `tamem` em
 `~/.local/bin/tamem` a cada commit, então o comando local nunca fica
 desatualizado. O git não ativa o `.githooks/` de um repo sozinho — rode isso
 uma vez por clone:
@@ -67,41 +72,24 @@ scripts.
 ### TUI
 
 ```bash
-# Abre a TUI interativa
+# Abre a TUI interativa (o mesmo que `tamem tui`)
 tamem
-
-# Configure seus projetos em ~/.config/tabelhamem/config.toml
-cat <<'EOF'
-[[projects]]
-slug = "tabelharadar"
-repo = "/home/ianptkcs/codigo/tabelhadev/tabelharadar"
-
-[layout]
-sidebar_width_share = 1
-right_width_share = 4
-stats_height_share = 1
-memory_height_share = 4
-
-[general]
-editor = ""
-EOF
 ```
 
-Atalhos (reconfiguráveis em `~/.config/tabelhamem/keybindings.json`):
+Projetos são descobertos automaticamente em
+`~/codigo/{ea,wiv,tabelha,ufmg,pessoal,cpdq}/`, agrupados por diretório,
+mais slugs de memória sem repo. Sem arquivo de config.
 
 | Tecla | Ação |
 |---|---|
 | `q` | Sair |
-| `?` | Ajuda |
-| `,` | Reconfigurar atalhos |
-| `r` | Rescan projetos |
-| `ctrl+shift+r` | Recarregar config |
-| `ctrl+h` / `ctrl+l` | Navegar painéis |
-| `j` / `k` | Mover cursor / rolar conteúdo |
-| `enter` | Abrir arquivo no editor |
 | `/` | Buscar memória |
-| `l` | Ligar projeto |
-| `u` | Desligar projeto |
+| `ctrl+h` / `ctrl+l` | Mover entre colunas |
+| `ctrl+j` / `ctrl+k` | Focar memória / ponte |
+| `j` / `k` | Navegar / rolar no painel focado |
+| `enter` | Mover pra direita / abrir resultado da busca |
+| `e` | Ligar/desligar o projeto selecionado |
+| `r` | Rescan projetos |
 | `esc` | Voltar / sair |
 
 ### IPC (JSON scriptável)
@@ -136,7 +124,7 @@ tamem ipc search query=worktree type=feedback --json
 | `link` | `project=`, `repo=` | Cria/atualiza a ponte de um projeto: migra + symlink + pointer `.tabelhamem.md` (com gitignore automático) |
 | `unlink` | `project=`, `repo=` | Desfaz o `link` de um repo: restaura um diretório real, remove o pointer, não mexe no diretório compartilhado |
 | `status` | `project=`, `repo=` (opcional) | Reporta se o symlink e o pointer estão certos |
-| `list` | (nenhum) | Lista todos os projetos sob `~/agent-memory/` |
+| `list` | (nenhum) | Lista projetos descobertos com repo e status real da ponte |
 | `search` | `query=`, `type=` (opcional), `project=` (opcional) | Busca texto em todos os projetos já ligados |
 
 ## Limitações
@@ -148,7 +136,6 @@ tamem ipc search query=worktree type=feedback --json
   sessão.
 - A detecção de worktrees requer `git` no `$PATH`. Se `git` não estiver
   disponível, o `tamem` opera em um único diretório (o caminho de `repo=`).
-- Depois de um `unlink`, rodar `link` de novo recusa sobrescrever se a
-  cópia local divergiu do compartilhado nesse meio tempo (mesma checagem de
-  segurança de um diretório nunca ligado) — resolva à mão (compare os dois,
-  remova a cópia local só depois de confirmar que nada se perde).
+- `link` mescla arquivos pré-existentes no armazenamento compartilhado sem
+  sobrescrever, e `unlink` restaura uma cópia real de volta — sem confronto
+  manual nos dois sentidos.

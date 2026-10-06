@@ -1,74 +1,22 @@
 import type { IPCArgs, ProjectInfo } from './types.js';
-import { getSharedDir, getTopicCount, checkClaudeSymlink, checkAgentsSection } from './store.js';
-import { IGNORED_MEMORY_DIRS } from './discover.js';
-import { readdirSync, existsSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-
-function isProjectDir(name: string): boolean {
-  return !name.startsWith('.') && !IGNORED_MEMORY_DIRS.has(name);
-}
+import { discoverProjects } from './discover.js';
 
 export function ipcList(_args: IPCArgs): number {
-  const agentMemoryDir = join(homedir(), 'agent-memory');
-
-  if (!existsSync(agentMemoryDir)) {
-    console.log(JSON.stringify([]));
-    return 0;
-  }
-
-  const entries = readdirSync(agentMemoryDir, { withFileTypes: true });
-  const projects: ProjectInfo[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !isProjectDir(entry.name)) continue;
-
-    const slug = entry.name;
-    const sharedDir = getSharedDir(slug);
-
-    projects.push({
-      slug,
-      repo: '',
-      sharedDir,
-      topicCount: getTopicCount(slug),
-      claudeLinked: checkClaudeSymlink(slug),
-      opencodeLinked: checkAgentsSection(slug),
-      agentsSection: checkAgentsSection(slug),
-      worktreeCount: 0,
-    });
-  }
-
-  console.log(JSON.stringify(projects, null, 2));
+  console.log(JSON.stringify(listProjects(), null, 2));
   return 0;
 }
 
+// listProjects agora usa a descoberta (repos + memória), com status real
+// da ponte em vez do caminho morto da config.
 export function listProjects(): ProjectInfo[] {
-  const agentMemoryDir = join(homedir(), 'agent-memory');
-
-  if (!existsSync(agentMemoryDir)) {
-    return [];
-  }
-
-  const entries = readdirSync(agentMemoryDir, { withFileTypes: true });
-  const projects: ProjectInfo[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !isProjectDir(entry.name)) continue;
-
-    const slug = entry.name;
-    const sharedDir = getSharedDir(slug);
-
-    projects.push({
-      slug,
-      repo: '',
-      sharedDir,
-      topicCount: getTopicCount(slug),
-      claudeLinked: checkClaudeSymlink(slug),
-      opencodeLinked: checkAgentsSection(slug),
-      agentsSection: checkAgentsSection(slug),
-      worktreeCount: 0,
-    });
-  }
-
-  return projects;
+  return discoverProjects().map((d) => ({
+    slug: d.slug,
+    repo: d.repo,
+    sharedDir: d.sharedDir,
+    topicCount: d.topicCount,
+    claudeLinked: d.linked,
+    opencodeLinked: d.agentsSection,
+    agentsSection: d.agentsSection,
+    worktreeCount: 0,
+  }));
 }

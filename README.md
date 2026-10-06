@@ -6,9 +6,9 @@
 
 **English** · [Português](README.pt-BR.md)
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TAbelhaDev/tabelhamem?style=flat-square&logo=go&logoColor=white&color=00ADD8)](go.mod)
-[![Built with Bubble Tea](https://img.shields.io/badge/built%20with-Bubble%20Tea-ff69b4?style=flat-square)](https://github.com/charmbracelet/bubbletea)
-[![Powered by tabelhatuiui](https://img.shields.io/badge/theme-tabelhatuiui-d6b4f7?style=flat-square)](https://github.com/TAbelhaDev/tabelhatuiui)
+[![TypeScript](https://img.shields.io/badge/language-TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](tsconfig.json)
+[![Built with Bun](https://img.shields.io/badge/built%20with-Bun-fbf0df?style=flat-square&logo=bun&logoColor=black)](https://bun.sh)
+[![Built with OpenTUI](https://img.shields.io/badge/built%20with-OpenTUI-ff69b4?style=flat-square)](https://github.com/anomalyco/opentui)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square)](LICENSE)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ianptkcs)
@@ -44,12 +44,22 @@ per worktree.
 ## Install
 
 ```bash
-go install github.com/TAbelhaDev/tabelhamem/cmd/tamem@latest
+git clone https://github.com/TAbelha/tabelhamem.git
+cd tabelhamem
+bun install
+```
+
+The `tamem` command is a wrapper around `packages/ipc/src/cli.ts`:
+
+```bash
+# ~/.local/bin/tamem
+BUN_BIN="/home/ianptkcs/.local/share/mise/installs/bun/latest/bin/bun"
+exec "$BUN_BIN" "$REPO/packages/ipc/src/cli.ts" "$@"
 ```
 
 ### Local development
 
-A `post-commit` hook in `.githooks/` rebuilds and reinstalls `tamem` to
+A `post-commit` hook in `.githooks/` reinstalls the `tamem` wrapper to
 `~/.local/bin/tamem` after every commit, so the local command never goes
 stale. Git doesn't enable a repo's `.githooks/` automatically on clone — run
 this once per clone:
@@ -67,41 +77,23 @@ available for scripting.
 ### TUI
 
 ```bash
-# Launch the interactive TUI
+# Launch the interactive TUI (same as `tamem tui`)
 tamem
-
-# Configure your projects in ~/.config/tabelhamem/config.toml
-cat <<'EOF'
-[[projects]]
-slug = "tabelharadar"
-repo = "/home/ianptkcs/codigo/tabelhadev/tabelharadar"
-
-[layout]
-sidebar_width_share = 1
-right_width_share = 4
-stats_height_share = 1
-memory_height_share = 4
-
-[general]
-editor = ""
-EOF
 ```
 
-Keybindings (rebindable in `~/.config/tabelhamem/keybindings.json`):
+Projects are discovered automatically from `~/codigo/{ea,wiv,tabelha,ufmg,pessoal,cpdq}/`,
+grouped by directory, plus memory-only slugs. No config file needed.
 
 | Key | Action |
 |---|---|
 | `q` | Quit |
-| `?` | Help |
-| `,` | Rebind keys |
-| `r` | Rescan projects |
-| `ctrl+shift+r` | Reload config |
-| `ctrl+h` / `ctrl+l` | Navigate panels |
-| `j` / `k` | Move cursor / scroll content |
-| `enter` | Open file in editor |
 | `/` | Search memory |
-| `l` | Link project |
-| `u` | Unlink project |
+| `ctrl+h` / `ctrl+l` | Move between columns |
+| `ctrl+j` / `ctrl+k` | Focus memory / bridge |
+| `j` / `k` | Navigate / scroll in the focused panel |
+| `enter` | Move right / open search result |
+| `e` | Link/unlink the selected project |
+| `r` | Rescan projects |
 | `esc` | Back / quit |
 
 ### IPC (scriptable JSON)
@@ -135,7 +127,7 @@ tamem ipc search query=worktree type=feedback --json
 | `link` | `project=`, `repo=` | Creates/updates the bridge for a project: migrate + symlink + `.tabelhamem.md` pointer (also gitignores the pointer) |
 | `unlink` | `project=`, `repo=` | Reverses `link` for one repo: restores a real directory, removes the pointer file, leaves the shared dir alone |
 | `status` | `project=`, `repo=` (optional) | Reports whether the symlink and pointer file are in place |
-| `list` | (none) | Lists every project under `~/agent-memory/` |
+| `list` | (none) | Lists discovered projects with repo and real bridge status |
 | `search` | `query=`, `type=` (optional), `project=` (optional) | Full-text search across every bridged project's memory files |
 
 ## Limitations
@@ -146,7 +138,6 @@ tamem ipc search query=worktree type=feedback --json
   depends on the model following that instruction each session.
 - Worktree detection requires `git` on `$PATH`. If `git` is unavailable,
   `tamem` falls back to operating on a single directory (the `repo=` path).
-- After `unlink`, re-running `link` will refuse to overwrite if the local
-  copy has since diverged from the shared store (same safety check as a
-  fresh, never-linked directory) — resolve by hand (diff the two, then
-  remove the local copy once you're sure nothing would be lost).
+- `link` merges pre-existing memory files into the shared store without
+  overwriting, and `unlink` restores a real copy back — no manual conflict
+  resolution needed in either direction.
