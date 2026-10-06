@@ -1,8 +1,13 @@
 import type { IPCArgs, ProjectInfo } from './types.js';
 import { getSharedDir, getTopicCount, checkClaudeSymlink, checkAgentsSection } from './store.js';
+import { IGNORED_MEMORY_DIRS } from './discover.js';
 import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+
+function isProjectDir(name: string): boolean {
+  return !name.startsWith('.') && !IGNORED_MEMORY_DIRS.has(name);
+}
 
 export function ipcList(_args: IPCArgs): number {
   const agentMemoryDir = join(homedir(), 'agent-memory');
@@ -16,7 +21,7 @@ export function ipcList(_args: IPCArgs): number {
   const projects: ProjectInfo[] = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() || !isProjectDir(entry.name)) continue;
 
     const slug = entry.name;
     const sharedDir = getSharedDir(slug);
@@ -48,7 +53,7 @@ export function listProjects(): ProjectInfo[] {
   const projects: ProjectInfo[] = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() || !isProjectDir(entry.name)) continue;
 
     const slug = entry.name;
     const sharedDir = getSharedDir(slug);

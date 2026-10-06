@@ -1,5 +1,5 @@
 import type { IPCArgs } from './types.js';
-import { removeClaudeSymlink, removeAgentsSection } from './store.js';
+import { removeClaudeSymlink, removeAgentsSection, unlinkRepo } from './store.js';
 
 export function ipcUnlink(args: IPCArgs): number {
   const { project, repo } = args.filters;
@@ -13,8 +13,12 @@ export function ipcUnlink(args: IPCArgs): number {
     return 1;
   }
 
-  removeClaudeSymlink(project);
-  removeAgentsSection(project);
+  if (repo) {
+    unlinkRepo(repo, project);
+  } else {
+    removeClaudeSymlink(project);
+    removeAgentsSection(project);
+  }
 
   console.log(JSON.stringify({
     status: 'ok',

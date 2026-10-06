@@ -1,5 +1,5 @@
 import type { IPCArgs } from './types.js';
-import { ensureSharedDir, ensureClaudeSymlink, ensureAgentsSection } from './store.js';
+import { ensureSharedDir, ensureClaudeSymlink, ensureAgentsSection, linkRepo, getSharedDir } from './store.js';
 
 export function ipcLink(args: IPCArgs): number {
   const { project, repo } = args.filters;
@@ -13,9 +13,17 @@ export function ipcLink(args: IPCArgs): number {
     return 1;
   }
 
-  const sharedDir = ensureSharedDir(project);
-  ensureClaudeSymlink(project, sharedDir);
-  ensureAgentsSection(project, sharedDir);
+  // Com repo explícito, opera direto nele (todos os worktrees). Sem repo,
+  // cai no caminho legado via ~/.config/tabelhamem/config.toml.
+  if (repo) {
+    linkRepo(repo, project);
+  } else {
+    const legacyDir = ensureSharedDir(project);
+    ensureClaudeSymlink(project, legacyDir);
+    ensureAgentsSection(project, legacyDir);
+  }
+
+  const sharedDir = getSharedDir(project);
 
   console.log(JSON.stringify({
     status: 'ok',

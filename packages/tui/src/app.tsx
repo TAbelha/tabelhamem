@@ -1,27 +1,66 @@
 import { createSignal, createMemo, For, Show } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
-import { listProjects, listTopicFiles, readTopicFile, searchMemory } from "@tabelhamem/ipc";
-import type { ProjectInfo, SearchMatch } from "@tabelhamem/ipc";
+import {
+  discoverProjects,
+  listTopicFiles,
+  readTopicFile,
+  searchMemory,
+  linkRepo,
+  unlinkRepo,
+} from "@tabelhamem/ipc";
+import type { DiscoveredProject, SearchMatch } from "@tabelhamem/ipc";
+import { C, markdownStyle } from "./theme.jsx";
 
 type Mode = "browse" | "search";
-type Panel = "projects" | "files";
+type Focus = "projects" | "bridge" | "files" | "preview";
+
+interface OrgRow {
+  kind: "org";
+  org: string;
+}
+interface ProjRow {
+  kind: "proj";
+  proj: DiscoveredProject;
+}
+type Row = OrgRow | ProjRow;
+
+const ORDER: Focus[] = ["projects", "bridge", "files", "preview"];
+const ROW_WINDOW = 41;
+const PREVIEW_LINES = 60;
 
 export function App() {
-  const [projects, setProjects] = createSignal<ProjectInfo[]>([]);
+  const [projects, setProjects] = createSignal<DiscoveredProject[]>([]);
   const [cursor, setCursor] = createSignal(0);
-  const [panel, setPanel] = createSignal<Panel>("projects");
+  const [focus, setFocus] = createSignal<Focus>("projects");
   const [files, setFiles] = createSignal<string[]>([]);
   const [fileCursor, setFileCursor] = createSignal(0);
+  const [scroll, setScroll] = createSignal(0);
   const [mode, setMode] = createSignal<Mode>("browse");
+  const [editing, setEditing] = createSignal(false);
   const [query, setQuery] = createSignal("");
   const [results, setResults] = createSignal<SearchMatch[]>([]);
   const [resultIdx, setResultIdx] = createSignal(0);
   const [status, setStatus] = createSignal("");
 
+  let inputRef: any = null;
+
+  const rows = createMemo<Row[]>(() => {
+    const out: Row[] = [];
+    let last = "\0";
+    for (const p of projects()) {
+      const label = p.org === "" ? "memória" : p.org;
+      if (label !== last) {
+        out.push({ kind: "org", org: label });
+        last = label;
+      }
+      out.push({ kind: "proj", proj: p });
+    }
+    return out;
+  });
+
   const selected = createMemo(() => {
-    const list = projects();
-    if (list.length === 0) return null;
-    return list[Math.min(cursor(), list.length - 1)];
+    const r = rows()[cursor()];
+    return r && r.kind === "proj" ? r.proj : null;
   });
 
   const activeFile = createMemo(() => {
@@ -30,64 +69,186 @@ export function App() {
     return list[Math.min(fileCursor(), list.length - 1)];
   });
 
-  const content = createMemo(() => {
+  const previewText = createMemo(() => {
+    if (mode() === "search") {
+      const r = results()[Math.min(resultIdx(), results().length - 1)];
+      if (!r) return query() ? "(nenhum resultado)" : "(digite e tecle enter)";
+      return `# ${r.project}/${r.name}\n\n${r.snippet}`;
+    }
     const p = selected();
     const f = activeFile();
-    if (!p || !f) return "(nenhum arquivo)";
-    return readTopicFile(p.slug, f);
+    if (!p || !f) return "(nenhum arquivo de memória)";
+    const lines = readTopicFile(p.slug, f).split("\n");
+    const s = Math.min(scroll(), Math.max(0, lines.length - 1));
+    return lines.slice(s, s + PREVIEW_LINES).join("\n");
+  });
+
+  const visibleRows = createMemo(() => {
+    const all = rows();
+    if (all.length <= ROW_WINDOW) return { list: all, offset: 0 };
+    let start = cursor() - Math.floor(ROW_WINDOW / 2);
+    start = Math.max(0, Math.min(start, all.length - ROW_WINDOW));
+    return { list: all.slice(start, start + ROW_WINDOW), offset: start };
   });
 
   const refresh = () => {
-    const list = listProjects();
+    const list = discoverProjects();
     setProjects(list);
-    if (cursor() >= list.length) setCursor(Math.max(0, list.length - 1));
+    const r = rows();
+    if (cursor() >= r.length) setCursor(Math.max(0, r.length - 1));
     refreshFiles();
-    const p = selected();
-    setStatus(p ? `${list.length} projetos` : "nenhum projeto em ~/agent-memory/");
+    setStatus(`${list.length} repos em ~/codigo + memória`);
   };
 
   const refreshFiles = () => {
     const p = selected();
-    if (!p) {
-      setFiles([]);
-      return;
+    setFiles(p ? listTopicFiles(p.slug) : []);
+    setFileCursor(0);
+    setScroll(0);
+  };
+
+  const moveCursor = (delta: number) => {
+    const r = rows();
+    if (r.length === 0) return;
+    let i = cursor();
+    for (let step = 0; step < r.length; step++) {
+      i = (i + delta + r.length) % r.length;
+      if (r[i].kind === "proj") break;
     }
-    const list = listTopicFiles(p.slug);
-    setFiles(list);
-    if (fileCursor() >= list.length) setFileCursor(0);
+    setCursor(i);
+    refreshFiles();
   };
 
   const runSearch = (q: string) => {
     setQuery(q);
-    if (!q.trim()) {
-      setResults([]);
-      return;
-    }
-    setResults(searchMemory(q, "", ""));
+    setResults(q.trim() ? searchMemory(q, "", "") : []);
     setResultIdx(0);
+    setEditing(false);
   };
 
-  const move = (delta: number) => {
-    if (panel() === "projects") {
-      const n = projects().length;
-      if (n === 0) return;
-      setCursor((c) => (c + delta + n) % n);
+  const submitSearch = () => {
+    runSearch(String(inputRef?.value ?? ""));
+  };
+
+  const jumpToResult = () => {
+    const r = results()[resultIdx()];
+    if (!r) return;
+    const idx = rows().findIndex((x) => x.kind === "proj" && x.proj.slug === r.project);
+    if (idx >= 0) {
+      setCursor(idx);
       refreshFiles();
-    } else {
-      const n = mode() === "search" ? results().length : files().length;
-      if (n === 0) return;
-      if (mode() === "search") {
-        setResultIdx((i) => (i + delta + n) % n);
-      } else {
-        setFileCursor((c) => (c + delta + n) % n);
-      }
+      const fi = files().indexOf(r.file);
+      if (fi >= 0) setFileCursor(fi);
+    }
+    setMode("browse");
+    setResults([]);
+    setFocus("preview");
+    setScroll(0);
+  };
+
+  const doLink = () => {
+    const p = selected();
+    if (!p) return;
+    if (p.memoryOnly || !p.repo) {
+      setStatus(`${p.slug}: sem repo, nada pra ligar`);
+      return;
+    }
+    try {
+      linkRepo(p.repo, p.slug);
+      setStatus(`${p.slug}: ligado`);
+    } catch (err) {
+      setStatus(`${p.slug}: falha ao ligar (${err})`);
+    }
+    refresh();
+  };
+
+  const doUnlink = () => {
+    const p = selected();
+    if (!p) return;
+    if (p.memoryOnly || !p.repo) {
+      setStatus(`${p.slug}: sem repo, nada pra desligar`);
+      return;
+    }
+    try {
+      unlinkRepo(p.repo, p.slug);
+      setStatus(`${p.slug}: desligado`);
+    } catch (err) {
+      setStatus(`${p.slug}: falha ao desligar (${err})`);
+    }
+    refresh();
+  };
+
+  const moveFocus = (delta: number) => {
+    const i = ORDER.indexOf(focus());
+    setFocus(ORDER[Math.max(0, Math.min(ORDER.length - 1, i + delta))]);
+  };
+
+  const step = (delta: number) => {
+    switch (focus()) {
+      case "projects":
+        moveCursor(delta);
+        break;
+      case "files":
+        if (mode() === "search") {
+          const n = results().length;
+          if (n > 0) setResultIdx((v) => (v + delta + n) % n);
+        } else {
+          const n = files().length;
+          if (n > 0) setFileCursor((c) => (c + delta + n) % n);
+        }
+        break;
+      case "preview":
+        setScroll((s) => Math.max(0, s + delta));
+        break;
+      case "bridge":
+        break;
     }
   };
 
   useKeyboard((key) => {
-    if (mode() === "search" && key.name !== "escape" && key.name !== "return") return;
+    const name = key.name;
+    const ctrl = (key as any).ctrl === true;
 
-    switch (key.name) {
+    if (mode() === "search" && editing()) {
+      // Com o input focado, só o esc sai daqui. O submit (enter) chega via
+      // onSubmit do input, que lê o valor direto.
+      if (name === "escape") {
+        setMode("browse");
+        setResults([]);
+        setQuery("");
+        setEditing(false);
+      }
+      return;
+    }
+
+    if (ctrl && name === "h") {
+      moveFocus(-1);
+      return;
+    }
+    if (ctrl && name === "l") {
+      moveFocus(1);
+      return;
+    }
+    if (ctrl && name === "j") {
+      if (mode() === "search") {
+        const n = results().length;
+        if (n > 0) setResultIdx((v) => (v + 1) % n);
+      } else {
+        setFocus("files");
+      }
+      return;
+    }
+    if (ctrl && name === "k") {
+      if (mode() === "search") {
+        const n = results().length;
+        if (n > 0) setResultIdx((v) => (v - 1 + n) % n);
+      } else {
+        setFocus("bridge");
+      }
+      return;
+    }
+
+    switch (name) {
       case "q":
         if (mode() === "browse") process.exit(0);
         break;
@@ -99,19 +260,9 @@ export function App() {
         }
         break;
       case "return":
-        if (mode() === "search") {
-          const r = results()[resultIdx()];
-          if (r) {
-            const idx = projects().findIndex((p) => p.slug === r.project);
-            if (idx >= 0) {
-              setCursor(idx);
-              refreshFiles();
-              const fi = files().indexOf(r.file);
-              if (fi >= 0) setFileCursor(fi);
-            }
-          }
-          setMode("browse");
-        }
+      case "enter":
+        if (mode() === "search") jumpToResult();
+        else moveFocus(1);
         break;
       case "/":
         if (mode() === "browse") {
@@ -119,58 +270,85 @@ export function App() {
           setQuery("");
           setResults([]);
           setResultIdx(0);
+          setEditing(true);
+        } else {
+          setEditing(true);
         }
-        break;
-      case "tab":
-        setPanel((p) => (p === "projects" ? "files" : "projects"));
         break;
       case "j":
       case "down":
-        move(1);
+        step(1);
         break;
       case "k":
       case "up":
-        move(-1);
+        step(-1);
         break;
       case "r":
         if (mode() === "browse") refresh();
+        break;
+      case "l":
+        if (mode() === "browse") doLink();
+        break;
+      case "u":
+        if (mode() === "browse") doUnlink();
         break;
     }
   });
 
   refresh();
 
-  const currentResult = createMemo(() => {
-    const list = results();
-    if (list.length === 0) return null;
-    return list[Math.min(resultIdx(), list.length - 1)];
-  });
+  const dot = (on: boolean) => (on ? "●" : "○");
+  const dotColor = (on: boolean) => (on ? C.success : C.muted);
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      <text>TAmem, memória compartilhada entre agentes</text>
+      <text>
+        <span style={{ fg: C.primary } as any}>TAmem</span>
+        <span style={{ fg: C.muted } as any}> · memória compartilhada entre agentes</span>
+      </text>
       <box flexDirection="row" flexGrow={1}>
-        <box border title="Projetos" width={28} flexShrink={0}>
-          <For each={projects()}>
-            {(p, i) => (
-              <text>
-                {`${i() === cursor() && panel() === "projects" ? "▸ " : "  "}${p.slug} (${p.topicCount})`}
-              </text>
-            )}
+        <box border borderColor={focus() === "projects" ? C.primary : C.muted} title="Projetos" width={32} flexShrink={0}>
+          <For each={visibleRows().list}>
+            {(r, i) =>
+              r.kind === "org" ? (
+                <text>
+                  <span style={{ fg: C.muted } as any}>{`${r.org}/`}</span>
+                </text>
+              ) : (
+                <text>
+                  {i() + visibleRows().offset === cursor() && focus() === "projects" ? (
+                    <span style={{ fg: C.primary } as any}>{`▸ ${r.proj.slug} `}</span>
+                  ) : (
+                    <span style={{ fg: C.text } as any}>{`  ${r.proj.slug} `}</span>
+                  )}
+                  <span style={{ fg: dotColor(r.proj.linked) } as any}>{dot(r.proj.linked)}</span>
+                </text>
+              )
+            }
           </For>
-          <Show when={projects().length === 0}>
-            <text>(vazio)</text>
+          <Show when={rows().length === 0}>
+            <text>
+              <span style={{ fg: C.muted } as any}>(vazio)</span>
+            </text>
           </Show>
         </box>
-        <box flexDirection="column" flexGrow={1}>
-          <box border title="Ponte">
-            <Show when={selected()} fallback={<text>(nenhum projeto selecionado)</text>}>
-              <text>{`Slug:    ${selected()!.slug}`}</text>
-              <text>{`Store:    ${selected()!.sharedDir}`}</text>
-              <text>{`Tópicos:  ${selected()!.topicCount}`}</text>
+        <box flexDirection="column" width={46} flexShrink={0}>
+          <box border borderColor={focus() === "bridge" ? C.primary : C.muted} title="Ponte">
+            <Show when={selected()} fallback={<text>sem seleção</text>}>
+              <text>
+                <span style={{ fg: C.text } as any}>{`${selected()!.org ? selected()!.org + "/" : ""}${selected()!.slug}`}</span>
+              </text>
+              <text>
+                <span style={{ fg: dotColor(selected()!.linked) } as any}>{`${dot(selected()!.linked)} claude`}</span>
+                <span style={{ fg: C.muted } as any}> · </span>
+                <span style={{ fg: dotColor(selected()!.agentsSection) } as any}>{`${dot(selected()!.agentsSection)} agents`}</span>
+              </text>
+              <text>
+                <span style={{ fg: C.muted } as any}>{`${selected()!.topicCount} tópicos`}</span>
+              </text>
             </Show>
           </box>
-          <box border title="Memória" flexGrow={1}>
+          <box border borderColor={focus() === "files" ? C.primary : C.muted} title="Memória" flexGrow={1}>
             <Show
               when={mode() === "search"}
               fallback={
@@ -178,44 +356,56 @@ export function App() {
                   <For each={files()}>
                     {(f, i) => (
                       <text>
-                        {`${i() === fileCursor() && panel() === "files" ? "▸ " : "  "}${f}`}
+                        {i() === fileCursor() && focus() === "files" ? (
+                          <span style={{ fg: C.primary } as any}>{`▸ ${f}`}</span>
+                        ) : (
+                          <span style={{ fg: C.text } as any}>{`  ${f}`}</span>
+                        )}
                       </text>
                     )}
                   </For>
                   <Show when={files().length === 0}>
-                    <text>(nenhum arquivo de memória)</text>
+                    <text>
+                      <span style={{ fg: C.muted } as any}>(nenhum arquivo de memória)</span>
+                    </text>
                   </Show>
                 </>
               }
             >
-              <input
-                placeholder="buscar memória... (esc sai, enter abre)"
-                value={query()}
-                onInput={(value: string) => runSearch(value)}
-              />
+              <Show when={editing()}>
+                <input
+                  ref={(el: any) => (inputRef = el)}
+                  focused={mode() === "search" && editing()}
+                  placeholder="buscar memória... (enter busca, esc sai)"
+                  onSubmit={() => submitSearch()}
+                />
+              </Show>
               <For each={results()}>
                 {(r, i) => (
                   <text>
-                    {`${i() === resultIdx() ? "▸ " : "  "}${r.project}/${r.name}`}
+                    {i() === resultIdx() ? (
+                      <span style={{ fg: C.primary } as any}>{`▸ ${r.project}/${r.name}`}</span>
+                    ) : (
+                      <span style={{ fg: C.text } as any}>{`  ${r.project}/${r.name}`}</span>
+                    )}
                   </text>
                 )}
               </For>
               <Show when={query() && results().length === 0}>
-                <text>(nenhum resultado)</text>
+                <text>
+                  <span style={{ fg: C.muted } as any}>(nenhum resultado)</span>
+                </text>
               </Show>
             </Show>
           </box>
         </box>
+        <box border borderColor={focus() === "preview" ? C.primary : C.muted} title={activeFile() || "preview"} flexGrow={1}>
+          <markdown content={previewText()} syntaxStyle={markdownStyle()} />
+        </box>
       </box>
-      <box border title={activeFile() || "conteúdo"} maxHeight={12}>
-        <scrollbox>
-          <text>{content().slice(0, 2000)}</text>
-        </scrollbox>
-      </box>
-      <text>{`q sai · / busca · tab painéis · j/k navega · r rescan · ${status()}`}</text>
-      <Show when={mode() === "search" && currentResult()}>
-        <text>{currentResult()!.snippet.slice(0, 300)}</text>
-      </Show>
+      <text>
+        <span style={{ fg: C.muted } as any}>{`q sai · / busca · ^h/^l colunas · ^j/^k ponte/memória · j/k navega · l liga · u desliga · r rescan · ${status()}`}</span>
+      </text>
     </box>
   );
 }

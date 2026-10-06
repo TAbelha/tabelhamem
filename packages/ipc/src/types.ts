@@ -41,3 +41,14 @@ export interface HealthStatus {
   topicCount: number;
   worktreeCount: number;
 }
+
+export interface DiscoveredProject {
+  slug: string;
+  org: string;
+  repo: string;
+  sharedDir: string;
+  topicCount: number;
+  linked: boolean;
+  agentsSection: boolean;
+  memoryOnly: boolean;
+}
