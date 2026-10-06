@@ -28,7 +28,9 @@ interface ProjRow {
 type Row = OrgRow | ProjRow;
 
 const ROW_WINDOW = 41;
+const FILE_WINDOW = 30;
 const PREVIEW_LINES = 60;
+const PREVIEW_WIDTH = 300;
 const SLUG_WIDTH = 28;
 
 function slugLabel(slug: string): string {
@@ -90,7 +92,16 @@ export function App() {
     if (!p || !f) return "(nenhum arquivo de memória)";
     const lines = readTopicFile(p.slug, f).split("\n");
     const s = Math.min(scroll(), Math.max(0, lines.length - 1));
-    return lines.slice(s, s + PREVIEW_LINES).join("\n");
+    return lines
+      .slice(s, s + PREVIEW_LINES)
+      .map((l) => (l.length > PREVIEW_WIDTH ? l.slice(0, PREVIEW_WIDTH - 1) + "…" : l))
+      .join("\n");
+  });
+
+  const visibleFiles = createMemo(() => {
+    const adapted = files().map((name) => ({ kind: "proj" as const, name }));
+    const w = windowRows(adapted, fileCursor(), FILE_WINDOW);
+    return { list: w.list.map((r) => r.name), offset: w.offset };
   });
 
   const visibleRows = createMemo(() => windowRows(rows(), cursor(), ROW_WINDOW));
@@ -350,15 +361,15 @@ export function App() {
               </text>
             </Show>
           </box>
-          <box border borderColor={border("files")} title="Memória" flexGrow={1}>
+          <box border borderColor={border("files")} title={`Memória (${files().length})`} flexGrow={1}>
             <Show
               when={mode() === "search"}
               fallback={
                 <>
-                  <For each={files()}>
+                  <For each={visibleFiles().list}>
                     {(f, i) => (
                       <text>
-                        {i() === fileCursor() && focus() === "files" ? (
+                        {i() + visibleFiles().offset === fileCursor() && focus() === "files" ? (
                           <span style={{ fg: C.primary } as any}>{`▸ ${f}`}</span>
                         ) : (
                           <span style={{ fg: C.text } as any}>{`  ${f}`}</span>

@@ -21,3 +21,11 @@ test("agrupa por org com headers e mostra grupo atual no título", async () => {
   expect(frame).toContain("tabelhamem");
   expect(frame).toContain("Projetos ·");
 });
+
+test("frame nunca excede a altura pedida mesmo com muitas memórias", async () => {
+  // blip-plugins tem 80+ arquivos; sem janela a coluna esticava tudo.
+  const setup = await testRender(() => <App />, { width: 120, height: 20 });
+  await setup.renderOnce();
+  const lines = setup.captureCharFrame().trimEnd().split("\n");
+  expect(lines.length).toBeLessThanOrEqual(20);
+});
