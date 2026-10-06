@@ -5,11 +5,18 @@ import { runIPC } from './ipc.js';
 const args = process.argv.slice(2);
 const normalized = args[0] === 'ipc' ? args.slice(1) : args;
 
-if (normalized.length === 0) {
-  console.error('uso: tamem ipc <método> [key=value...] --json');
-  console.error('métodos: global, link, unlink, status, list, search, health, search-digest');
-  console.error('(a TUI interativa do tamem v1 foi descontinuada; use o plugin OpenCode ou o IPC)');
-  process.exit(1);
+if (normalized.length === 0 || normalized[0] === 'tui') {
+  // Abre a TUI interativa (OpenTUI + Solid) como processo filho herdando o
+  // terminal. Sem import estático pra não criar ciclo ipc -> tui. O preload
+  // do Solid vai explícito + cwd no pacote tui, porque o bunfig.toml de lá
+  // só é descoberto quando o cwd está dentro do pacote.
+  const tuiDir = new URL('../../tui/', import.meta.url).pathname;
+  const main = new URL('../../tui/src/main.tsx', import.meta.url).pathname;
+  const proc = Bun.spawn([process.execPath, 'run', '--preload', '@opentui/solid/preload', main], {
+    stdio: ['inherit', 'inherit', 'inherit'],
+    cwd: tuiDir,
+  });
+  process.exit(await proc.exited);
 }
 
 try {

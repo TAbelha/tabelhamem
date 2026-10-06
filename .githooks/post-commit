@@ -9,7 +9,7 @@ target="$HOME/.local/bin/tamem"
 
 cat > "$target" <<EOF
 #!/usr/bin/env bash
-# tamem v2: CLI/IPC do tabelhamem (TypeScript).
+# tamem v2: CLI/IPC + TUI do tabelhamem (TypeScript).
 set -euo pipefail
 BUN_BIN="/home/ianptkcs/.local/share/mise/installs/bun/latest/bin/bun"
 exec "\$BUN_BIN" "$repo_root/packages/ipc/src/cli.ts" "\$@"

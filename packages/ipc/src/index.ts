@@ -6,6 +6,7 @@ export { ipcUnlink } from './unlink.js';
 export { ipcStatus } from './status.js';
 export { ipcList, listProjects } from './list.js';
 export { ipcSearch, searchMemory } from './search.js';
+export { listTopicFiles, readTopicFile } from './topics.js';
 export { ipcHealth } from './health.js';
 export { ipcSearchDigest } from './search-digest.js';
 export type { IPCArgs, IPCMethod, ProjectInfo, SearchMatch, HealthStatus } from './types.js';
