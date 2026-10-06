@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync, lstatSync, readFileSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { discoverProjects } from './discover.js';
+import { discoverProjects, defaultCodeRoots } from './discover.js';
 import { linkRepo, unlinkRepo, getSharedDir, claudeMemoryDir } from './store.js';
 
 describe('discover', () => {
@@ -88,5 +88,11 @@ describe('discover', () => {
     expect(r.repo).toBe(repo);
     expect(r.linked).toBe(true);
     expect(r.memoryOnly).toBe(false);
+  });
+
+  it('raízes padrão incluem cpdq', () => {
+    const roots = defaultCodeRoots();
+    expect(roots.some((r) => r.endsWith('/codigo/cpdq'))).toBe(true);
+    expect(roots.some((r) => r.endsWith('/codigo/tabelhadev'))).toBe(false);
   });
 });

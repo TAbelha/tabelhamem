@@ -125,13 +125,21 @@ export function App(props?: { initialSlug?: string }) {
     const list = discoverProjects();
     setProjects(list);
     const r = rows();
-    if (cursor() >= r.length) setCursor(Math.max(0, r.length - 1));
+    let c = cursor();
+    if (c >= r.length) c = Math.max(0, r.length - 1);
     // Slug inicial (só teste): posiciona o cursor nele no primeiro refresh.
     if (!initialized && props?.initialSlug) {
       initialized = true;
       const idx = r.findIndex((x) => x.kind === "proj" && x.proj.slug === props.initialSlug);
-      if (idx >= 0) setCursor(idx);
+      if (idx >= 0) c = idx;
     }
+    // Cursor nunca repousa num header: avança pro próximo projeto.
+    if (r.length > 0 && r[c]?.kind !== "proj") {
+      const next = r.findIndex((x, i) => i >= c && x.kind === "proj");
+      c = next >= 0 ? next : r.findIndex((x) => x.kind === "proj");
+      if (c < 0) c = 0;
+    }
+    setCursor(c);
     refreshFiles();
     setStatus(`${list.length} repos em ~/codigo + memória`);
   };

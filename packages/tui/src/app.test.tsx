@@ -28,6 +28,14 @@ test("renderiza cabeçalho e painéis", async () => {
   expect(frame).toContain("liga/desliga");
 });
 
+test("abertura já seleciona o primeiro projeto", async () => {
+  const setup = await testRender(() => <App />, { width: 120, height: 34 });
+  await setup.renderOnce();
+  const frame = setup.captureCharFrame();
+  expect(frame).toContain("▸");
+  expect(frame).not.toContain("sem seleção");
+});
+
 test("agrupa por org com headers e mostra grupo atual no título", async () => {
   const setup = await testRender(() => <App />, { width: 120, height: 34 });
   await setup.renderOnce();

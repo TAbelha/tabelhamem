@@ -9,7 +9,7 @@ export const IGNORED_MEMORY_DIRS = new Set(['_archive']);
 
 // Raízes de código varridas pela descoberta de projetos.
 export function defaultCodeRoots(): string[] {
-  return ['ea', 'wiv', 'tabelha', 'ufmg', 'pessoal'].map((d) => join(homedir(), 'codigo', d));
+  return ['ea', 'wiv', 'tabelha', 'ufmg', 'pessoal', 'cpdq'].map((d) => join(homedir(), 'codigo', d));
 }
 
 function symlinkTarget(linkPath: string): string | null {
