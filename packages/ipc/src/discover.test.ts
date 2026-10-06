@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync, lstatSync, readFileSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, lstatSync, readFileSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { discoverProjects } from './discover.js';
@@ -71,5 +71,22 @@ describe('discover', () => {
     linkRepo(repo, 'proj-a');
     expect(existsSync(join(getSharedDir('proj-a'), 'old.md'))).toBe(true);
     expect(lstatSync(cmd).isSymbolicLink()).toBe(true);
+  });
+
+  it('slugs ligados fora das raízes entram com repo resolvido', () => {
+    const repo = join(home, 'codigo', 'tabelhadev', 'radar');
+    mkdirSync(repo, { recursive: true });
+    mkdirSync(join(home, 'agent-memory', 'radar'), { recursive: true });
+
+    const cmd = claudeMemoryDir(repo);
+    mkdirSync(join(cmd, '..'), { recursive: true });
+    symlinkSync(getSharedDir('radar'), cmd);
+
+    const all = discoverProjects([join(home, 'codigo', 'wiv')]);
+    const r = all.find((p) => p.slug === 'radar')!;
+    expect(r.org).toBe('tabelhadev');
+    expect(r.repo).toBe(repo);
+    expect(r.linked).toBe(true);
+    expect(r.memoryOnly).toBe(false);
   });
 });
