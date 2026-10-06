@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, lstatSync, readFileSync, 
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { discoverProjects, defaultCodeRoots } from './discover.js';
-import { linkRepo, unlinkRepo, getSharedDir, claudeMemoryDir } from './store.js';
+import { linkRepo, unlinkRepo, getSharedDir, claudeMemoryDir, MEMORY_POINTER_FILE } from './store.js';
 
 describe('discover', () => {
   let home: string;
@@ -52,13 +52,14 @@ describe('discover', () => {
 
     linkRepo(repo, 'proj-a');
     expect(lstatSync(claudeMemoryDir(repo)).isSymbolicLink()).toBe(true);
-    expect(readFileSync(join(repo, 'AGENTS.md'), 'utf-8')).toContain('tabelhamem:start');
+    expect(readFileSync(join(repo, MEMORY_POINTER_FILE), 'utf-8')).toContain('tabelhamem:start');
+    expect(existsSync(join(repo, 'AGENTS.md'))).toBe(false);
 
     unlinkRepo(repo, 'proj-a');
     expect(lstatSync(claudeMemoryDir(repo)).isSymbolicLink()).toBe(false);
     expect(existsSync(join(claudeMemoryDir(repo), 'feedback_x.md'))).toBe(true);
     expect(existsSync(join(getSharedDir('proj-a'), 'feedback_x.md'))).toBe(true);
-    expect(readFileSync(join(repo, 'AGENTS.md'), 'utf-8')).not.toContain('tabelhamem:start');
+    expect(existsSync(join(repo, 'AGENTS.md'))).toBe(false);
   });
 
   it('linkRepo migra arquivos pré-existentes sem sobrescrever', () => {

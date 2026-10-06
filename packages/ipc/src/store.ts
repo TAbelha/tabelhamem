@@ -6,6 +6,11 @@ import { homedir } from 'os';
 export const AGENTS_MARKER_START = '<!-- tabelhamem:start -->';
 export const AGENTS_MARKER_END = '<!-- tabelhamem:end -->';
 
+// Arquivo próprio da ponte dentro de cada repo. O bloco de instruções mora
+// aqui em vez do AGENTS.md: o link nunca cria nem edita AGENTS.md, então
+// nunca nasce um AGENTS.md espúrio por causa do tamem.
+export const MEMORY_POINTER_FILE = '.tabelhamem.md';
+
 export function getSharedDir(slug: string): string {
   return join(homedir(), 'agent-memory', slug);
 }
@@ -81,22 +86,49 @@ export function ensureAgentsSection(slug: string, sharedDir: string): void {
 }
 
 export function ensureAgentsSectionAt(repoAbs: string, slug: string, sharedDir: string): void {
-  const agentsPath = join(repoAbs, 'AGENTS.md');
+  writePointerFile(repoAbs, slug, sharedDir);
+  // Migração: remove bloco legado do AGENTS.md (se o link v1 o escreveu),
+  // deletando o arquivo só se ficar em branco.
+  cleanLegacyAgentsBlock(repoAbs);
+}
+
+function writePointerFile(repoAbs: string, slug: string, sharedDir: string): void {
+  const pointerPath = join(repoAbs, MEMORY_POINTER_FILE);
   const section = buildAgentsSection(slug, sharedDir);
 
-  if (existsSync(agentsPath)) {
-    const content = readFileSync(agentsPath, 'utf-8');
+  if (existsSync(pointerPath)) {
+    const content = readFileSync(pointerPath, 'utf-8');
     if (content.includes(AGENTS_MARKER_START)) {
       const newContent = content.replace(
         new RegExp(`${AGENTS_MARKER_START}[\\s\\S]*?${AGENTS_MARKER_END}`),
         section.trim()
       );
-      writeFileSync(agentsPath, newContent);
+      writeFileSync(pointerPath, newContent);
     } else {
-      writeFileSync(agentsPath, content + '\n\n' + section);
+      writeFileSync(pointerPath, content + '\n\n' + section);
     }
   } else {
-    writeFileSync(agentsPath, section);
+    writeFileSync(pointerPath, section);
+  }
+}
+
+// cleanLegacyAgentsBlock remove o bloco que o link v1 escrevia no AGENTS.md.
+// Deleta o AGENTS.md só se ele ficar em branco (i.e. o tamem o havia criado).
+export function cleanLegacyAgentsBlock(repoAbs: string): void {
+  const agentsPath = join(repoAbs, 'AGENTS.md');
+  if (!existsSync(agentsPath)) return;
+
+  const content = readFileSync(agentsPath, 'utf-8');
+  if (!content.includes(AGENTS_MARKER_START)) return;
+
+  const newContent = content.replace(
+    new RegExp(`${AGENTS_MARKER_START}[\\s\\S]*?${AGENTS_MARKER_END}\\n?`),
+    ''
+  );
+  if (newContent.trim() === '') {
+    rmSync(agentsPath, { force: true });
+  } else {
+    writeFileSync(agentsPath, newContent);
   }
 }
 
@@ -107,28 +139,63 @@ export function removeAgentsSection(slug: string): void {
 }
 
 export function removeAgentsSectionAt(repoAbs: string): void {
-  const agentsPath = join(repoAbs, 'AGENTS.md');
-  if (!existsSync(agentsPath)) return;
-
-  const content = readFileSync(agentsPath, 'utf-8');
-  if (content.includes(AGENTS_MARKER_START)) {
-    const newContent = content.replace(
-      new RegExp(`${AGENTS_MARKER_START}[\\s\\S]*?${AGENTS_MARKER_END}\\n?`),
-      ''
-    );
-    writeFileSync(agentsPath, newContent);
+  // Remove o pointer; deleta o arquivo se ficar vazio.
+  const pointerPath = join(repoAbs, MEMORY_POINTER_FILE);
+  if (existsSync(pointerPath)) {
+    const content = readFileSync(pointerPath, 'utf-8');
+    if (content.includes(AGENTS_MARKER_START)) {
+      const newContent = content.replace(
+        new RegExp(`${AGENTS_MARKER_START}[\\s\\S]*?${AGENTS_MARKER_END}\\n?`),
+        ''
+      );
+      if (newContent.trim() === '') {
+        rmSync(pointerPath, { force: true });
+      } else {
+        writeFileSync(pointerPath, newContent);
+      }
+    }
   }
+  // Limpeza legada do AGENTS.md.
+  cleanLegacyAgentsBlock(repoAbs);
 }
 
 export function checkAgentsSection(slug: string): boolean {
   const repo = getRepoFromConfig(slug);
   if (!repo) return false;
+  return hasAgentsSectionAt(repo);
+}
 
-  const agentsPath = join(repo, 'AGENTS.md');
-  if (!existsSync(agentsPath)) return false;
+// hasAgentsSectionAt vale pro pointer novo e pro bloco legado no AGENTS.md,
+// pra status/health funcionarem durante a transição.
+export function hasAgentsSectionAt(repoAbs: string): boolean {
+  try {
+    const pointer = readFileSync(join(repoAbs, MEMORY_POINTER_FILE), 'utf-8');
+    if (pointer.includes(AGENTS_MARKER_START)) return true;
+  } catch { /* sem pointer */ }
+  try {
+    const agents = readFileSync(join(repoAbs, 'AGENTS.md'), 'utf-8');
+    return agents.includes(AGENTS_MARKER_START);
+  } catch {
+    return false;
+  }
+}
 
-  const content = readFileSync(agentsPath, 'utf-8');
-  return content.includes(AGENTS_MARKER_START);
+// ensureGitignored garante uma linha no .gitignore (append idempotente,
+// cria o arquivo se não existe, nunca remove nada).
+export function ensureGitignored(repoAbs: string, line: string): void {
+  const p = join(repoAbs, '.gitignore');
+  try {
+    if (existsSync(p)) {
+      const content = readFileSync(p, 'utf-8');
+      if (content.split('\n').some((l) => l.trim() === line)) return;
+      const sep = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+      writeFileSync(p, content + sep + line + '\n');
+    } else {
+      writeFileSync(p, line + '\n');
+    }
+  } catch (err) {
+    console.error(`Erro atualizando .gitignore: ${err}`);
+  }
 }
 
 function buildAgentsSection(slug: string, sharedDir: string): string {
@@ -187,6 +254,9 @@ export function gitWorktrees(repo: string): string[] {
 // AGENTS.md. Opera em todos os worktrees do repo. Idempotente.
 export function linkRepo(repoAbs: string, slug: string): void {
   const shared = ensureSharedDir(slug);
+  // O pointer é local (path absoluto da máquina); nunca commitar.
+  // Só no checkout principal, não em cada worktree.
+  ensureGitignored(repoAbs, MEMORY_POINTER_FILE);
   for (const wt of gitWorktrees(repoAbs)) {
     migrateAndLink(claudeMemoryDir(wt), shared);
     ensureAgentsSectionAt(wt, slug, shared);

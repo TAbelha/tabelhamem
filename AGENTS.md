@@ -10,13 +10,3 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 <!-- END:turborepo-agent-rules -->
 
 
-<!-- tabelhamem:start -->
-## Memória Compartilhada
-
-Este projeto usa memória compartilhada em `/home/ianptkcs/agent-memory/tabelhamem`.
-
-Instruções:
-- Leia `/home/ianptkcs/agent-memory/tabelhamem/` no início da sessão
-- Escreva resumos da sessão no final
-- Use `tamem ipc search` para buscar memória
-<!-- tabelhamem:end -->

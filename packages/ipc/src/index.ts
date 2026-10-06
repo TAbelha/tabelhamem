@@ -8,7 +8,7 @@ export { ipcList, listProjects } from './list.js';
 export { ipcSearch, searchMemory } from './search.js';
 export { listTopicFiles, readTopicFile } from './topics.js';
 export { discoverProjects, isRepoLinked, hasAgentsSection, defaultCodeRoots, IGNORED_MEMORY_DIRS } from './discover.js';
-export { linkRepo, unlinkRepo } from './store.js';
+export { linkRepo, unlinkRepo, MEMORY_POINTER_FILE, hasAgentsSectionAt, cleanLegacyAgentsBlock, ensureGitignored } from './store.js';
 export { ipcHealth } from './health.js';
 export { ipcSearchDigest } from './search-digest.js';
 export type { IPCArgs, IPCMethod, ProjectInfo, SearchMatch, HealthStatus, DiscoveredProject } from './types.js';

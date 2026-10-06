@@ -33,8 +33,8 @@ em markdown puro: `~/agent-memory/<projeto>/`, irmão de `~/jobs` (automação
 do próprio usuário, não amarrada a nenhuma ferramenta específica). O
 diretório de memória do Claude Code vira um symlink pra lá (transparente —
 o Claude só faz I/O de arquivo normal); o OpenCode lê/escreve no mesmo lugar
-através de um bloco que o `tamem` mantém no `AGENTS.md` do repo (carregado
-automaticamente pelo opencode a cada sessão).
+através de um arquivo pointer `.tabelhamem.md` que o `tamem` mantém na raiz
+do repo — o link nunca cria nem edita o `AGENTS.md` do repo.
 
 Quando o repo é um repositório git, o `tamem` detecta automaticamente todos
 os worktrees via `git worktree list` e liga, desfaz ou confere a saúde da
@@ -109,13 +109,13 @@ Atalhos (reconfiguráveis em `~/.config/tabelhamem/keybindings.json`):
 ```bash
 # Liga a memória de um projeto: migra os arquivos de memória do Claude Code
 # já existentes pra ~/agent-memory/<projeto>/, faz o symlink do diretório
-# do Claude Code pra lá, e escreve/atualiza as instruções no AGENTS.md do
-# repo. Idempotente.
+# do Claude Code pra lá, e escreve/atualiza as instruções no
+# .tabelhamem.md do repo (nunca toca no AGENTS.md). Idempotente.
 tamem ipc link project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
 
 # Desfaz: o diretório de memória do Claude Code em <repo> volta a ter uma
 # cópia real do conteúdo compartilhado (o diretório compartilhado em si não
-# é tocado), e a seção do AGENTS.md é removida.
+# é tocado), e o arquivo pointer é removido.
 tamem ipc unlink project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
 
 # Confere a saúde da ponte pra um projeto
@@ -133,16 +133,17 @@ tamem ipc search query=worktree type=feedback --json
 | Método | Filtros | Descrição |
 |---|---|---|
 | `global` | (nenhum) | Configura o armazenamento global compartilhado: cria `~/agent-memory/global/`, migra o AGENTS.md existente, cria symlink do Claude Code e atualiza o pointer do OpenCode |
-| `link` | `project=`, `repo=` | Cria/atualiza a ponte de um projeto: migra + symlink + seção no AGENTS.md |
-| `unlink` | `project=`, `repo=` | Desfaz o `link` de um repo: restaura um diretório real, remove a seção do AGENTS.md, não mexe no diretório compartilhado |
-| `status` | `project=`, `repo=` (opcional) | Reporta se o symlink e a seção do AGENTS.md estão certos |
+| `link` | `project=`, `repo=` | Cria/atualiza a ponte de um projeto: migra + symlink + pointer `.tabelhamem.md` (com gitignore automático) |
+| `unlink` | `project=`, `repo=` | Desfaz o `link` de um repo: restaura um diretório real, remove o pointer, não mexe no diretório compartilhado |
+| `status` | `project=`, `repo=` (opcional) | Reporta se o symlink e o pointer estão certos |
 | `list` | (nenhum) | Lista todos os projetos sob `~/agent-memory/` |
 | `search` | `query=`, `type=` (opcional), `project=` (opcional) | Busca texto em todos os projetos já ligados |
 
 ## Limitações
 
-- O lado OpenCode da ponte é dirigido por instrução: o opencode carrega o
-  bloco do `AGENTS.md`, mas ler/escrever de fato o armazenamento
+- O lado OpenCode da ponte é dirigido por instrução: o modelo lê o
+  pointer `.tabelhamem.md` (e o plugin OpenCode injeta memória
+  automaticamente), mas ler/escrever de fato o armazenamento
   compartilhado ainda depende do modelo seguir essa instrução a cada
   sessão.
 - A detecção de worktrees requer `git` no `$PATH`. Se `git` não estiver

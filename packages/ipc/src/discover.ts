@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, lstatSync, readlinkSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, lstatSync, readlinkSync } from 'fs';
 import { join, basename, dirname, resolve, isAbsolute, sep } from 'path';
 import { homedir } from 'os';
-import { getSharedDir, getTopicCount, claudeMemoryDir, AGENTS_MARKER_START } from './store.js';
+import { getSharedDir, getTopicCount, claudeMemoryDir, hasAgentsSectionAt } from './store.js';
 import type { DiscoveredProject } from './types.js';
 
 // Diretórios sob ~/agent-memory que nunca são projetos.
@@ -27,11 +27,7 @@ export function isRepoLinked(repo: string, shared: string): boolean {
 }
 
 export function hasAgentsSection(repo: string): boolean {
-  try {
-    return readFileSync(join(repo, 'AGENTS.md'), 'utf-8').includes(AGENTS_MARKER_START);
-  } catch {
-    return false;
-  }
+  return hasAgentsSectionAt(repo);
 }
 
 // symlinks ativos do Claude Code que apontam pra dentro de ~/agent-memory:

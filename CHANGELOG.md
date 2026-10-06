@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bridge instructions now live in a `.tabelhamem.md` pointer file in the
+  repo root instead of a section in the repo's `AGENTS.md`. `link` never
+  creates or edits `AGENTS.md`, so no stray `AGENTS.md` can be born from
+  linking; it also appends the pointer to `.gitignore` (idempotent) and
+  cleans up legacy `AGENTS.md` blocks left by previous versions (deleting
+  the file only if left blank).
+
 ### Added
 - `global` IPC method: idempotent setup of the shared global memory store
   at `~/agent-memory/global/`. Migrates existing `~/.config/opencode/AGENTS.md`

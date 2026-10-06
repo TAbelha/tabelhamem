@@ -32,9 +32,9 @@ tamem uses that to teach it the same store.
 store: `~/agent-memory/<project>/`, sibling to `~/jobs` (the user's own
 automation state, not owned by any single tool). Claude Code's per-project
 memory directory becomes a symlink into it (transparent — Claude just does
-normal file I/O); OpenCode reads/writes the same location through an
-instruction block `tamem` maintains in the repo's `AGENTS.md`, auto-loaded
-by opencode each session.
+normal file I/O); OpenCode reads/writes the same location through a
+`.tabelhamem.md` pointer file `tamem` maintains in the repo root — the link
+never creates or edits the repo's `AGENTS.md`.
 
 When the repo is a git repository, `tamem` automatically detects all git
 worktrees via `git worktree list` and links, unlinks, or checks the bridge
@@ -109,12 +109,12 @@ Keybindings (rebindable in `~/.config/tabelhamem/keybindings.json`):
 ```bash
 # Link a project's memory: migrates existing Claude Code memory files into
 # ~/agent-memory/<project>/, symlinks Claude's own memory dir to it, and
-# writes/updates the bridge instructions in <repo>/AGENTS.md. Idempotent.
+# writes/updates the bridge instructions in <repo>/.tabelhamem.md. Idempotent.
 tamem ipc link project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
 
 # Undo it: <repo>'s Claude Code memory dir gets a real copy of the current
 # shared content back (the shared dir itself is left alone), and the
-# AGENTS.md section is removed.
+# pointer file is removed (deleted if left empty).
 tamem ipc unlink project=tabelharadar repo=/home/ianptkcs/codigo/tabelhadev/tabelharadar --json
 
 # Check the bridge's health for one project
@@ -132,16 +132,17 @@ tamem ipc search query=worktree type=feedback --json
 | Method | Filters | Description |
 |---|---|---|
 | `global` | (none) | Sets up the shared global memory store: creates `~/agent-memory/global/`, migrates existing `AGENTS.md`, symlinks Claude Code, and updates the OpenCode pointer |
-| `link` | `project=`, `repo=` | Creates/updates the bridge for a project: migrate + symlink + AGENTS.md section |
-| `unlink` | `project=`, `repo=` | Reverses `link` for one repo: restores a real directory, removes the AGENTS.md section, leaves the shared dir alone |
-| `status` | `project=`, `repo=` (optional) | Reports whether the symlink and AGENTS.md section are in place |
+| `link` | `project=`, `repo=` | Creates/updates the bridge for a project: migrate + symlink + `.tabelhamem.md` pointer (also gitignores the pointer) |
+| `unlink` | `project=`, `repo=` | Reverses `link` for one repo: restores a real directory, removes the pointer file, leaves the shared dir alone |
+| `status` | `project=`, `repo=` (optional) | Reports whether the symlink and pointer file are in place |
 | `list` | (none) | Lists every project under `~/agent-memory/` |
 | `search` | `query=`, `type=` (optional), `project=` (optional) | Full-text search across every bridged project's memory files |
 
 ## Limitations
 
-- The OpenCode side of the bridge is instruction-driven: opencode auto-loads
-  the `AGENTS.md` block, but actually reading/writing the shared store still
+- The OpenCode side of the bridge is instruction-driven: the model reads
+  the `.tabelhamem.md` pointer (and the OpenCode plugin injects memory
+  automatically), but actually reading/writing the shared store still
   depends on the model following that instruction each session.
 - Worktree detection requires `git` on `$PATH`. If `git` is unavailable,
   `tamem` falls back to operating on a single directory (the `repo=` path).
