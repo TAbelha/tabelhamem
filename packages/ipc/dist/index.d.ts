@@ -1,0 +1,11 @@
+export { runIPC } from './ipc.js';
+export { parseIPCArgs } from './parser.js';
+export { ipcGlobal } from './global.js';
+export { ipcLink } from './link.js';
+export { ipcUnlink } from './unlink.js';
+export { ipcStatus } from './status.js';
+export { ipcList } from './list.js';
+export { ipcSearch } from './search.js';
+export { ipcHealth } from './health.js';
+export { ipcSearchDigest } from './search-digest.js';
+export type { IPCArgs, IPCMethod, ProjectInfo, SearchMatch, HealthStatus } from './types.js';
