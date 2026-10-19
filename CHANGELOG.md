@@ -5,35 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-- Bridge instructions now live in a `.tabelhamem.md` pointer file in the
-  repo root instead of a section in the repo's `AGENTS.md`. `link` never
-  creates or edits `AGENTS.md`, so no stray `AGENTS.md` can be born from
-  linking; it also appends the pointer to `.gitignore` (idempotent) and
-  cleans up legacy `AGENTS.md` blocks left by previous versions (deleting
-  the file only if left blank).
+## [2.0.0] - 2026-10-19
 
 ### Added
-- `global` IPC method: idempotent setup of the shared global memory store
-  at `~/agent-memory/global/`. Migrates existing `~/.config/opencode/AGENTS.md`
-  and `~/.claude/memory/` content into the store, symlinks both to the
-  shared store.
-- Interactive TUI (Bubble Tea + tabelhatuiui v0.6.0): 3-panel layout
-  (projects sidebar, bridge status, memory browser) with integrated
-  search, link/unlink forms, inline scrollable file viewer, and
-  rebindable keybindings.
-- `config.toml` at `~/.config/tabelhamem/config.toml`: `[[projects]]`
-  slug-to-repo mapping, `[layout]` panel shares, `[general] editor`.
-- `searchMemory()` extracted as a reusable core shared by both IPC and TUI
-  search modes.
+- OpenCode V2 plugin (`packages/plugin/src/opencode.js`, installed to
+  `~/.config/opencode/plugins/` via `install.sh`): injects shared memory
+  into the system prompt, exposes `memory_search`/`memory_write` tools,
+  captures file mutations as observations, and writes structured session
+  digests with token/cost usage on `session.idle`/`session.compacted`.
+  No LLM call, zero extra cost.
+- Bridge instructions moved to a `.tabelhamem.md` pointer file in each
+  repo instead of a section in `AGENTS.md`. `link` never creates or
+  edits `AGENTS.md`, so no stray `AGENTS.md` is born from linking; it
+  also cleans up legacy `AGENTS.md` blocks left by previous versions
+  (deleting the file only if left blank).
+- `global` IPC method: idempotent setup of the shared global memory
+  store at `~/agent-memory/global/`. Migrates existing
+  `~/.config/opencode/AGENTS.md` and `~/.claude/memory/` content into
+  the store, symlinks both to the shared store.
+- Interactive TUI (OpenTUI + Solid): 3-panel layout (projects sidebar,
+  bridge status, memory browser) with integrated search, link/unlink
+  forms, inline scrollable file viewer, and vim-like navigation.
+- `tamem` (no args) now launches the TUI instead of printing usage and
+  exiting with code 1. The CLI wraps `packages/ipc/src/cli.ts`.
+- `searchMemory()` extracted as a reusable core shared by both IPC and
+  TUI search modes.
 
 ### Changed
-- `tamem` (no args) now launches the TUI instead of printing usage to
-  stderr and exiting with code 1.
-- Dependencies: added bubbletea v1.3.10, bubbles v1.0.0, lipgloss v1.1.0,
-  tabelhatuiui v0.6.0, BurntSushi/toml v1.6.0.
+- Automatic git worktree detection: `link`, `unlink`, and `status` now
+  cover all worktrees of a repo in a single invocation via
+  `git worktree list`.
+- Removed the limitation that `link` must be re-run per worktree.
+- The pointer file is now ignored locally via `$GIT_DIR/info/exclude`
+  instead of `.gitignore`. `link` no longer touches `.gitignore` (and
+  removes the legacy line where a previous version had written one), so
+  no tracked file changes when bridging a shared repo.
+- Go v1 sources removed; the repo is a TypeScript monorepo (turborepo)
+  with Bun as runtime and package manager.
 
 ## [0.3.0] - 2026-09-14
 
