@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-10-19
+
+### Changed
+- TUI tests are now hermetic: use `process.env.HOME || homedir()` in IPC
+  package to allow override in tests, and create filesystem fixtures in
+  `beforeEach` instead of depending on real `~/codigo` directory.
+- TUI tests generate 20 repos + memory files for scrolling tests, making
+  them independent of the developer's machine.
+- Preview test adjusted to be more robust with extra settle rounds and
+  check content instead of title.
+
 ## [2.0.0] - 2026-10-19
 
 ### Added
