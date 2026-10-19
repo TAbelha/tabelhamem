@@ -189,8 +189,66 @@ export function hasAgentsSectionAt(repoAbs: string): boolean {
   }
 }
 
-// ensureGitignored garante uma linha no .gitignore (append idempotente,
-// cria o arquivo se não existe, nunca remove nada).
+// gitDirFor resolve o gitdir absoluto de um checkout (main ou worktree
+// linkado). Null quando fora de repo git.
+export function gitDirFor(repoAbs: string): string | null {
+  try {
+    const out = execSync('git rev-parse --absolute-git-dir', {
+      cwd: repoAbs,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (!out) return null;
+    return isAbsolute(out) ? out : resolve(repoAbs, out);
+  } catch {
+    return null;
+  }
+}
+
+// ensureExcluded garante uma linha no $GIT_DIR/info/exclude (ignore local,
+// nunca committado). Append idempotente, cria info/ se falta. No-op fora
+// de repo git.
+export function ensureExcluded(repoAbs: string, line: string): void {
+  const gitdir = gitDirFor(repoAbs);
+  if (!gitdir) return;
+  const p = join(gitdir, 'info', 'exclude');
+  try {
+    if (existsSync(p)) {
+      const content = readFileSync(p, 'utf-8');
+      if (content.split('\n').some((l) => l.trim() === line)) return;
+      const sep = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+      writeFileSync(p, content + sep + line + '\n');
+    } else {
+      mkdirSync(join(gitdir, 'info'), { recursive: true });
+      writeFileSync(p, line + '\n');
+    }
+  } catch (err) {
+    console.error(`Erro atualizando exclude: ${err}`);
+  }
+}
+
+// removeGitignoreLine apaga só a linha exata do .gitignore (migração da
+// era em que o link escrevia lá). Preserva resto. Se sobrar vazio, apaga
+// o arquivo (restaura estado pré-link quando fomos nós que o criamos).
+export function removeGitignoreLine(repoAbs: string, line: string): void {
+  const p = join(repoAbs, '.gitignore');
+  try {
+    if (!existsSync(p)) return;
+    const content = readFileSync(p, 'utf-8');
+    const kept = content.split('\n').filter((l) => l.trim() !== line);
+    if (kept.length === content.split('\n').length) return;
+    if (kept.join('\n').trim() === '') {
+      rmSync(p, { force: true });
+    } else {
+      writeFileSync(p, kept.join('\n') + (kept.join('\n').endsWith('\n') ? '' : '\n'));
+    }
+  } catch (err) {
+    console.error(`Erro limpando .gitignore: ${err}`);
+  }
+}
+
+// Legado: link não usa mais (troca por .git/info/exclude local). Mantido
+// por compat de import; prefira ensureExcluded + removeGitignoreLine.
 export function ensureGitignored(repoAbs: string, line: string): void {
   const p = join(repoAbs, '.gitignore');
   try {
@@ -259,14 +317,19 @@ export function gitWorktrees(repo: string): string[] {
 
 // linkRepo liga um repo explícito à memória compartilhada do slug: migra
 // arquivos de memória já existentes no dir do Claude Code para o
-// compartilhado (sem sobrescrever), cria o symlink e escreve a seção no
-// AGENTS.md. Opera em todos os worktrees do repo. Idempotente.
+// compartilhado (sem sobrescrever), cria o symlink e escreve o pointer
+// .tabelhamem.md. Opera em todos os worktrees do repo. Idempotente.
+// Não toca nenhum arquivo tracked: o pointer é ignorado via
+// $GIT_DIR/info/exclude (local, nunca committado) e qualquer linha legada
+// no .gitignore é removida.
 export function linkRepo(repoAbs: string, slug: string): void {
   const shared = ensureSharedDir(slug);
   // O pointer é local (path absoluto da máquina); nunca commitar.
-  // Só no checkout principal, não em cada worktree.
-  ensureGitignored(repoAbs, MEMORY_POINTER_FILE);
+  // Ignore local por worktree (cada worktree tem seu próprio gitdir).
+  // Migração: limpa linha legada que o link v1 escrevia no .gitignore.
+  removeGitignoreLine(repoAbs, MEMORY_POINTER_FILE);
   for (const wt of gitWorktrees(repoAbs)) {
+    ensureExcluded(wt, MEMORY_POINTER_FILE);
     migrateAndLink(claudeMemoryDir(wt), shared);
     ensureAgentsSectionAt(wt, slug, shared);
   }
