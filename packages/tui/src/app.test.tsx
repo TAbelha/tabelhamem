@@ -1,6 +1,48 @@
-import { test, expect } from "bun:test";
+import { test, expect, beforeEach, afterEach } from "bun:test";
 import { testRender } from "@opentui/solid";
 import { App } from "./app.jsx";
+import { mkdirSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+
+let homeDir: string;
+let realHome: string | undefined;
+
+beforeEach(() => {
+  realHome = process.env.HOME;
+  homeDir = join(tmpdir(), `tm-tui-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  process.env.HOME = homeDir;
+
+  // Create fixture repos and memory files
+  mkdirSync(join(homeDir, "codigo/tabelha/tabelhamem/.git"), { recursive: true });
+  mkdirSync(join(homeDir, "codigo/wiv/blip-plugins/.git"), { recursive: true });
+  mkdirSync(join(homeDir, "codigo/pessoal/gerador-ficha-tormenta20/.git"), { recursive: true });
+
+  // Create shared memory directories
+  mkdirSync(join(homeDir, "agent-memory/tabelhamem"), { recursive: true });
+  mkdirSync(join(homeDir, "agent-memory/blip-plugins"), { recursive: true });
+  mkdirSync(join(homeDir, "agent-memory/gerador-ficha-tormenta20"), { recursive: true });
+
+  // Create memory files
+  const lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ";
+  for (let i = 0; i < 80; i++) {
+    writeFileSync(join(homeDir, `agent-memory/blip-plugins/topic-${i.toString().padStart(2, "0")}.md`),
+      `# Topic ${i}\n\n${lorem.repeat(50)}`);
+  }
+  writeFileSync(join(homeDir, "agent-memory/gerador-ficha-tormenta20/agents.md"),
+    "# Agents\n\nConfiguração de agentes com referências a múltiplos tópicos do sistema.");
+  writeFileSync(join(homeDir, "agent-memory/gerador-ficha-tormenta20/tópicos.md"),
+    "# Tópicos\n\nLista de tópicos e suas relações hierárquicas no projeto.");
+  writeFileSync(join(homeDir, "agent-memory/tabelhamem/feedback.md"),
+    "# Feedback\n\nFeedback do usuário sobre a ferramenta de memória compartilhada.");
+  writeFileSync(join(homeDir, "agent-memory/tabelhamem/session.md"),
+    "# Session\n\nResumo da sessão atual com decisões e contextos importantes.");
+});
+
+afterEach(() => {
+  process.env.HOME = realHome;
+  rmSync(homeDir, { recursive: true, force: true });
+});
 
 async function press(setup: any, key: string, mods?: any, n = 1) {
   for (let i = 0; i < n; i++) setup.mockInput.pressKey(key, mods);
