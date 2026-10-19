@@ -12,7 +12,7 @@ export const AGENTS_MARKER_END = '<!-- tabelhamem:end -->';
 export const MEMORY_POINTER_FILE = '.tabelhamem.md';
 
 export function getSharedDir(slug: string): string {
-  return join(homedir(), 'agent-memory', slug);
+  return join(process.env.HOME || homedir(), 'agent-memory', slug);
 }
 
 export function ensureSharedDir(slug: string): string {
@@ -29,7 +29,7 @@ export function getTopicCount(slug: string): number {
 
 export function claudeMemoryDir(repoAbs: string): string {
   const encoded = repoAbs.replace(/\//g, '-').replace(/\./g, '-');
-  return join(homedir(), '.claude', 'projects', encoded, 'memory');
+  return join(process.env.HOME || homedir(), '.claude', 'projects', encoded, 'memory');
 }
 
 export function ensureClaudeSymlink(slug: string, sharedDir: string): void {
@@ -280,7 +280,7 @@ ${AGENTS_MARKER_END}`;
 
 function getRepoFromConfig(slug: string): string | null {
   try {
-    const configPath = join(homedir(), '.config', 'tabelhamem', 'config.toml');
+    const configPath = join(process.env.HOME || homedir(), '.config', 'tabelhamem', 'config.toml');
     if (!existsSync(configPath)) return null;
 
     const content = readFileSync(configPath, 'utf-8');

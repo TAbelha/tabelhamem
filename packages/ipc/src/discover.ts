@@ -4,12 +4,17 @@ import { homedir } from 'os';
 import { getSharedDir, getTopicCount, claudeMemoryDir, hasAgentsSectionAt } from './store.js';
 import type { DiscoveredProject } from './types.js';
 
+// Use process.env.HOME when available (for tests), fallback to homedir()
+function getHome(): string {
+  return process.env.HOME || homedir();
+}
+
 // Diretórios sob ~/agent-memory que nunca são projetos.
 export const IGNORED_MEMORY_DIRS = new Set(['_archive']);
 
 // Raízes de código varridas pela descoberta de projetos.
 export function defaultCodeRoots(): string[] {
-  return ['ea', 'wiv', 'tabelha', 'ufmg', 'pessoal', 'cpdq'].map((d) => join(homedir(), 'codigo', d));
+  return ['ea', 'wiv', 'tabelha', 'ufmg', 'pessoal', 'cpdq'].map((d) => join(getHome(), 'codigo', d));
 }
 
 function symlinkTarget(linkPath: string): string | null {
@@ -34,9 +39,9 @@ export function hasAgentsSection(repo: string): boolean {
 // slug -> caminho do dir de memória do Claude (o próprio symlink).
 function claudeLinkedSlugs(): Map<string, string> {
   const out = new Map<string, string>();
-  const base = join(homedir(), '.claude', 'projects');
+  const base = join(getHome(), '.claude', 'projects');
   if (!existsSync(base)) return out;
-  const prefix = join(homedir(), 'agent-memory') + sep;
+  const prefix = join(getHome(), 'agent-memory') + sep;
   for (const e of readdirSync(base, { withFileTypes: true })) {
     if (!e.isDirectory()) continue;
     const target = symlinkTarget(join(base, e.name, 'memory'));
@@ -51,7 +56,7 @@ function claudeLinkedSlugs(): Map<string, string> {
 // slugs que já têm ponte ativa (symlink do Claude), pra não perder o l/u
 // de projetos fora das raízes varridas.
 function findRepoBySlug(slug: string): string | null {
-  const code = join(homedir(), 'codigo');
+  const code = join(getHome(), 'codigo');
   if (!existsSync(code)) return null;
   for (const org of readdirSync(code, { withFileTypes: true })) {
     if (!org.isDirectory() || org.name.startsWith('.')) continue;
@@ -106,7 +111,7 @@ export function discoverProjects(roots: string[] = defaultCodeRoots()): Discover
   // Slugs já ligados (symlink ativo do Claude) entram com repo resolvido
   // mesmo fora das raízes, pra não perder o l/u. O resto vira memória.
   const linked = claudeLinkedSlugs();
-  const memRoot = join(homedir(), 'agent-memory');
+  const memRoot = join(getHome(), 'agent-memory');
   if (existsSync(memRoot)) {
     for (const e of readdirSync(memRoot, { withFileTypes: true })) {
       if (!e.isDirectory() || e.name.startsWith('.') || IGNORED_MEMORY_DIRS.has(e.name)) continue;

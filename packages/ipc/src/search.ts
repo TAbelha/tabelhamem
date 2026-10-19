@@ -52,7 +52,7 @@ export function searchMemory(query: string, type: string, project: string): Sear
 }
 
 function listProjects(): string[] {
-  const agentMemoryDir = join(homedir(), 'agent-memory');
+  const agentMemoryDir = join(process.env.HOME || homedir(), 'agent-memory');
   if (!existsSync(agentMemoryDir)) return [];
 
   return readdirSync(agentMemoryDir, { withFileTypes: true })
