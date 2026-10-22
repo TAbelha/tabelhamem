@@ -1,7 +1,8 @@
 import { execSync } from 'child_process';
-import { existsSync, symlinkSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, lstatSync, readlinkSync, renameSync, statSync } from 'fs';
+import { existsSync, symlinkSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, lstatSync, readlinkSync, statSync } from 'fs';
 import { join, dirname, resolve, isAbsolute } from 'path';
 import { homedir } from 'os';
+import { planMerge, applyMerge } from './merge.js';
 
 export const AGENTS_MARKER_START = '<!-- tabelhamem:start -->';
 export const AGENTS_MARKER_END = '<!-- tabelhamem:end -->';
@@ -410,20 +411,31 @@ function symlinkPointsTo(linkPath: string, target: string): boolean {
   }
 }
 
+// migrateAndLink junta o dir de memória real no compartilhado e troca por
+// symlink. Com conflito (mesmo nome, conteúdo diferente) não toca em nada:
+// o dir real fica e o symlink não é criado, pra nunca perder arquivo.
 function migrateAndLink(claudeDir: string, shared: string): void {
   mkdirSync(join(claudeDir, '..'), { recursive: true });
+  let st;
   try {
-    const st = lstatSync(claudeDir);
-    if (st.isSymbolicLink()) {
-      rmSync(claudeDir);
-    } else if (st.isDirectory()) {
-      for (const f of readdirSync(claudeDir)) {
-        const dst = join(shared, f);
-        if (!existsSync(dst)) renameSync(join(claudeDir, f), dst);
-      }
-      rmSync(claudeDir, { recursive: true, force: true });
-    }
+    st = lstatSync(claudeDir);
   } catch { /* não existia, segue */ }
+  if (st?.isSymbolicLink()) {
+    if (symlinkPointsTo(claudeDir, shared)) return;
+    rmSync(claudeDir);
+  } else if (st?.isDirectory()) {
+    const plan = planMerge([claudeDir], shared);
+    if (plan.conflicts.length > 0) {
+      console.error(`Conflito migrando ${claudeDir}; dir real mantido, symlink não criado:`);
+      for (const c of plan.conflicts) console.error(`  ${c.rel}: ${c.sources.join(' <> ')}`);
+      return;
+    }
+    applyMerge(plan, shared);
+    rmSync(claudeDir, { recursive: true, force: true });
+  } else if (st) {
+    console.error(`${claudeDir} existe e não é dir nem symlink; ignorado`);
+    return;
+  }
   if (!symlinkPointsTo(claudeDir, shared)) {
     try {
       symlinkSync(shared, claudeDir);
