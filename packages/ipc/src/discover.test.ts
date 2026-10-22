@@ -8,10 +8,13 @@ import { linkRepo, unlinkRepo, getSharedDir, claudeMemoryDir, MEMORY_POINTER_FIL
 describe('discover', () => {
   let home: string;
   let realHome: string | undefined;
+  let realCCD: string | undefined;
 
   beforeEach(() => {
     home = join(tmpdir(), `tm-discover-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     realHome = process.env.HOME;
+    realCCD = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.HOME = home;
 
     mkdirSync(join(home, 'codigo', 'wiv', 'proj-a', '.git'), { recursive: true });
@@ -26,6 +29,8 @@ describe('discover', () => {
 
   afterEach(() => {
     process.env.HOME = realHome;
+    if (realCCD === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = realCCD;
     rmSync(home, { recursive: true, force: true });
   });
 

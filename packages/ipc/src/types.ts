@@ -40,6 +40,8 @@ export interface HealthStatus {
   sharedDir: string;
   topicCount: number;
   worktreeCount: number;
+  // Config dirs do Claude ligados (só quando status recebe repo=).
+  claudeLinkedDirs?: string[];
 }
 
 export interface DiscoveredProject {

@@ -1,6 +1,6 @@
 import type { IPCArgs, HealthStatus } from './types.js';
 import { checkClaudeSymlink, checkAgentsSection, getSharedDir, getTopicCount, hasAgentsSectionAt } from './store.js';
-import { isRepoLinked } from './discover.js';
+import { linkedConfigDirs } from './discover.js';
 
 export function ipcStatus(args: IPCArgs): number {
   const { project, repo } = args.filters;
@@ -13,8 +13,9 @@ export function ipcStatus(args: IPCArgs): number {
   const sharedDir = getSharedDir(project);
   // Com repo explícito, checa direto nele. Sem repo, cai no caminho legado
   // via config (que responde false sem ~/.config/tabelhamem/config.toml).
-  const claudeLinked = repo
-    ? isRepoLinked(repo, sharedDir)
+  const claudeLinkedDirs = repo ? linkedConfigDirs(repo, sharedDir) : undefined;
+  const claudeLinked = claudeLinkedDirs
+    ? claudeLinkedDirs.length > 0
     : checkClaudeSymlink(project);
   const agentsSection = repo
     ? hasAgentsSectionAt(repo)
@@ -30,6 +31,8 @@ export function ipcStatus(args: IPCArgs): number {
     topicCount,
     worktreeCount: 0,
   };
+  // Com repo explícito, mostra em quais config dirs do Claude há symlink.
+  if (claudeLinkedDirs) status.claudeLinkedDirs = claudeLinkedDirs;
 
   console.log(JSON.stringify(status, null, 2));
   return 0;

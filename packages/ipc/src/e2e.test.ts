@@ -15,6 +15,7 @@ describe('E2E: ponte de memória compartilhada', () => {
   let claudeDir: string;
   let repoDir: string;
   let realHome: string | undefined;
+  let realCCD: string | undefined;
 
   beforeEach(() => {
     testDir = join(tmpdir(), `tabelhamem-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -27,16 +28,26 @@ describe('E2E: ponte de memória compartilhada', () => {
     mkdirSync(repoDir, { recursive: true });
 
     realHome = process.env.HOME;
+    realCCD = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.HOME = testDir;
   });
 
   afterEach(() => {
     process.env.HOME = realHome;
+    if (realCCD === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = realCCD;
     rmSync(testDir, { recursive: true, force: true });
   });
 
+  // Env sem CLAUDE_CONFIG_DIR: senão o CLI escreveria no config dir real.
+  const cliEnv = (): NodeJS.ProcessEnv => {
+    const { CLAUDE_CONFIG_DIR: _drop, ...rest } = process.env;
+    return { ...rest, HOME: testDir };
+  };
+
   const run = (args: string): string =>
-    execSync(`bun run ${CLI} ipc ${args}`, { encoding: 'utf-8', env: { ...process.env, HOME: testDir } });
+    execSync(`bun run ${CLI} ipc ${args}`, { encoding: 'utf-8', env: cliEnv() });
 
   it('deve criar symlink do Claude Code para memória compartilhada', () => {
     const result = run(`link project=test-project repo=${repoDir} --json`);

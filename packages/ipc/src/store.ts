@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { existsSync, symlinkSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, lstatSync, readlinkSync, renameSync } from 'fs';
+import { existsSync, symlinkSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, lstatSync, readlinkSync, renameSync, statSync } from 'fs';
 import { join, dirname, resolve, isAbsolute } from 'path';
 import { homedir } from 'os';
 
@@ -27,9 +27,54 @@ export function getTopicCount(slug: string): number {
   return readdirSync(dir).filter(f => f.endsWith('.md')).length;
 }
 
-export function claudeMemoryDir(repoAbs: string): string {
-  const encoded = repoAbs.replace(/\//g, '-').replace(/\./g, '-');
-  return join(process.env.HOME || homedir(), '.claude', 'projects', encoded, 'memory');
+// encodeProjectPath reproduz a codificação do Claude Code pro nome do dir
+// em projects/: todo '/' e '.' vira '-'.
+export function encodeProjectPath(pathAbs: string): string {
+  return pathAbs.replace(/[\/.]/g, '-');
+}
+
+// claudeConfigDirs lista os config dirs do Claude Code, em ordem e sem
+// duplicata (por resolve): $CLAUDE_CONFIG_DIR (se setado, mesmo sem
+// projects/), ~/.claude (sempre) e cada diretório ~/.claude-* que tenha
+// projects/, ordenados. ~/.claude-monitor (sem projects/) e o arquivo
+// ~/.claude.json ficam de fora.
+export function claudeConfigDirs(): string[] {
+  const home = process.env.HOME || homedir();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (d: string) => {
+    const r = resolve(d);
+    if (seen.has(r)) return;
+    seen.add(r);
+    out.push(r);
+  };
+
+  if (process.env.CLAUDE_CONFIG_DIR) add(process.env.CLAUDE_CONFIG_DIR);
+  add(join(home, '.claude'));
+
+  let names: string[] = [];
+  try {
+    names = readdirSync(home).filter((n) => n.startsWith('.claude-')).sort();
+  } catch { /* HOME ausente */ }
+  for (const n of names) {
+    try {
+      if (statSync(join(home, n)).isDirectory() && statSync(join(home, n, 'projects')).isDirectory()) {
+        add(join(home, n));
+      }
+    } catch { /* sem projects/ */ }
+  }
+  return out;
+}
+
+// claudeMemoryDir é o dir de memória do Claude Code pra um path absoluto
+// dentro de um config dir (padrão ~/.claude, pra compat dos chamadores).
+export function claudeMemoryDir(pathAbs: string, configDir: string = join(process.env.HOME || homedir(), '.claude')): string {
+  return join(configDir, 'projects', encodeProjectPath(pathAbs), 'memory');
+}
+
+// claudeMemoryDirs é o dir de memória do path em cada config dir.
+export function claudeMemoryDirs(pathAbs: string): string[] {
+  return claudeConfigDirs().map((d) => claudeMemoryDir(pathAbs, d));
 }
 
 export function ensureClaudeSymlink(slug: string, sharedDir: string): void {
@@ -330,24 +375,26 @@ export function linkRepo(repoAbs: string, slug: string): void {
   removeGitignoreLine(repoAbs, MEMORY_POINTER_FILE);
   for (const wt of gitWorktrees(repoAbs)) {
     ensureExcluded(wt, MEMORY_POINTER_FILE);
-    migrateAndLink(claudeMemoryDir(wt), shared);
+    // Todo config dir aponta pro mesmo ~/agent-memory/<slug>: sem roteamento
+    // por conta, ligar em todos é inofensivo.
+    for (const md of claudeMemoryDirs(wt)) migrateAndLink(md, shared);
     ensureAgentsSectionAt(wt, slug, shared);
   }
 }
 
 // unlinkRepo desfaz o link de um repo explícito: o diretório de memória do
-// Claude Code volta a ter uma cópia real do conteúdo compartilhado (o
-// compartilhado não é tocado) e a seção do AGENTS.md é removida.
+// Claude Code (em cada config dir ligado) volta a ter uma cópia real do
+// conteúdo compartilhado (o compartilhado não é tocado) e o pointer é removido.
 export function unlinkRepo(repoAbs: string, slug: string): void {
   const shared = getSharedDir(slug);
   for (const wt of gitWorktrees(repoAbs)) {
-    const cmd = claudeMemoryDir(wt);
-    try {
-      if (lstatSync(cmd).isSymbolicLink()) rmSync(cmd);
-    } catch { /* não era symlink */ }
-    if (existsSync(shared)) {
+    for (const cmd of claudeMemoryDirs(wt)) {
+      // Só mexe onde havia symlink pro compartilhado: não cria dir de
+      // memória em config dir que nunca foi ligado.
+      if (!symlinkPointsTo(cmd, shared)) continue;
+      rmSync(cmd);
       mkdirSync(cmd, { recursive: true });
-      copyMerge(shared, cmd);
+      if (existsSync(shared)) copyMerge(shared, cmd);
     }
     removeAgentsSectionAt(wt);
   }

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, lstatSync, readlinkSync } from 'fs';
 import { join, basename, dirname, resolve, isAbsolute, sep } from 'path';
 import { homedir } from 'os';
-import { getSharedDir, getTopicCount, claudeMemoryDir, hasAgentsSectionAt } from './store.js';
+import { getSharedDir, getTopicCount, claudeMemoryDir, claudeConfigDirs, hasAgentsSectionAt } from './store.js';
 import type { DiscoveredProject } from './types.js';
 
 // Use process.env.HOME when available (for tests), fallback to homedir()
@@ -27,8 +27,15 @@ function symlinkTarget(linkPath: string): string | null {
   }
 }
 
+// linkedConfigDirs lista os config dirs do Claude cujo dir de memória do
+// repo é symlink pro compartilhado.
+export function linkedConfigDirs(repo: string, shared: string): string[] {
+  return claudeConfigDirs().filter((d) => symlinkTarget(claudeMemoryDir(repo, d)) === shared);
+}
+
+// isRepoLinked vale se qualquer config dir estiver ligado.
 export function isRepoLinked(repo: string, shared: string): boolean {
-  return symlinkTarget(claudeMemoryDir(repo)) === shared;
+  return linkedConfigDirs(repo, shared).length > 0;
 }
 
 export function hasAgentsSection(repo: string): boolean {
@@ -37,16 +44,19 @@ export function hasAgentsSection(repo: string): boolean {
 
 // symlinks ativos do Claude Code que apontam pra dentro de ~/agent-memory:
 // slug -> caminho do dir de memória do Claude (o próprio symlink).
+// Varre o projects/ de todos os config dirs; o primeiro achado vence.
 function claudeLinkedSlugs(): Map<string, string> {
   const out = new Map<string, string>();
-  const base = join(getHome(), '.claude', 'projects');
-  if (!existsSync(base)) return out;
   const prefix = join(getHome(), 'agent-memory') + sep;
-  for (const e of readdirSync(base, { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
-    const target = symlinkTarget(join(base, e.name, 'memory'));
-    if (target && target.startsWith(prefix)) {
-      out.set(basename(target), join(base, e.name, 'memory'));
+  for (const cfg of claudeConfigDirs()) {
+    const base = join(cfg, 'projects');
+    if (!existsSync(base)) continue;
+    for (const e of readdirSync(base, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const target = symlinkTarget(join(base, e.name, 'memory'));
+      if (target && target.startsWith(prefix) && !out.has(basename(target))) {
+        out.set(basename(target), join(base, e.name, 'memory'));
+      }
     }
   }
   return out;

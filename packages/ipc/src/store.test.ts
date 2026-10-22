@@ -14,11 +14,14 @@ import {
 describe('pointer file', () => {
   let home: string;
   let realHome: string | undefined;
+  let realCCD: string | undefined;
   let repo: string;
 
   beforeEach(() => {
     home = join(tmpdir(), `tm-pointer-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     realHome = process.env.HOME;
+    realCCD = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.HOME = home;
     repo = join(home, 'codigo', 'wiv', 'proj-a');
     mkdirSync(repo, { recursive: true });
@@ -26,6 +29,8 @@ describe('pointer file', () => {
 
   afterEach(() => {
     process.env.HOME = realHome;
+    if (realCCD === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = realCCD;
     rmSync(home, { recursive: true, force: true });
   });
 
@@ -106,11 +111,14 @@ describe('pointer file', () => {
 describe('link sem tocar tracked', () => {
   let home: string;
   let realHome: string | undefined;
+  let realCCD: string | undefined;
   let repo: string;
 
   beforeEach(() => {
     home = join(tmpdir(), `tm-exclude-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     realHome = process.env.HOME;
+    realCCD = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.HOME = home;
     repo = join(home, 'codigo', 'wiv', 'proj-b');
     mkdirSync(repo, { recursive: true });
@@ -118,6 +126,8 @@ describe('link sem tocar tracked', () => {
 
   afterEach(() => {
     process.env.HOME = realHome;
+    if (realCCD === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = realCCD;
     rmSync(home, { recursive: true, force: true });
   });
 
