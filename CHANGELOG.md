@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `migrate` method: `tamem ipc migrate project=<slug> path=<dir> [--dry-run]`
+  adopts real Claude Code memory dirs of any path (repo or not, including
+  `$HOME`) into `~/agent-memory/<slug>`. All-or-nothing: any conflict aborts
+  with no changes. Originals are kept as `memory.pre-tamem-<timestamp>`
+  backups, then every config dir is symlinked. Does not write the
+  `.tabelhamem.md` pointer; run `link` afterwards for repos.
+- Multiple Claude config dirs: `$CLAUDE_CONFIG_DIR`, `~/.claude` and every
+  `~/.claude-*` directory with a `projects/` subdir. `link`/`unlink`,
+  discovery and `status` operate on all of them; `status` with `repo=`
+  reports `claudeLinkedDirs`.
+- Boolean `--flag` CLI args become `flag=true` filters.
+
+### Fixed
+- `link` no longer deletes memory files that conflict (same name, different
+  content) with the shared store. Identical files are deduped, `MEMORY.md`
+  indexes are merged line by line, and on a real conflict the Claude dir is
+  left as a real directory and not symlinked.
+
 ## [2.0.3] - 2026-10-19
 
 ### Changed

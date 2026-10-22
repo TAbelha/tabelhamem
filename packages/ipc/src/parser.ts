@@ -9,6 +9,7 @@ const VALID_METHODS: IPCMethod[] = [
   'search',
   'health',
   'search-digest',
+  'migrate',
 ];
 
 export function parseIPCArgs(args: string[]): IPCArgs {
@@ -28,6 +29,9 @@ export function parseIPCArgs(args: string[]): IPCArgs {
     const arg = args[i];
     if (arg === '--json') {
       json = true;
+    } else if (arg.startsWith('--')) {
+      // Flag booleana (ex.: --dry-run) vira filtro 'true'.
+      filters[arg.slice(2)] = 'true';
     } else if (arg.includes('=')) {
       const [key, ...rest] = arg.split('=');
       const value = rest.join('=');

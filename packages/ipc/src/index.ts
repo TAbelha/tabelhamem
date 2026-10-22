@@ -11,4 +11,8 @@ export { discoverProjects, isRepoLinked, linkedConfigDirs, hasAgentsSection, def
 export { linkRepo, unlinkRepo, claudeConfigDirs, claudeMemoryDir, claudeMemoryDirs, encodeProjectPath, MEMORY_POINTER_FILE, hasAgentsSectionAt, cleanLegacyAgentsBlock, ensureGitignored, ensureExcluded, removeGitignoreLine, gitDirFor } from './store.js';
 export { ipcHealth } from './health.js';
 export { ipcSearchDigest } from './search-digest.js';
+export { ipcMigrate, migratePath } from './migrate.js';
+export type { MigrateResult } from './migrate.js';
+export { planMerge, applyMerge } from './merge.js';
+export type { MergePlan } from './merge.js';
 export type { IPCArgs, IPCMethod, ProjectInfo, SearchMatch, HealthStatus, DiscoveredProject } from './types.js';

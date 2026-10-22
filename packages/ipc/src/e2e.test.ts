@@ -90,4 +90,17 @@ describe('E2E: ponte de memória compartilhada', () => {
     expect(result).toContain('Claude');
     expect(result).toContain('OpenCode');
   });
+
+  it('migrate --dry-run reporta o plano sem escrever', () => {
+    const work = join(testDir, 'work');
+    const md = join(testDir, '.claude', 'projects', work.replace(/[\/.]/g, '-'), 'memory');
+    mkdirSync(md, { recursive: true });
+    writeFileSync(join(md, 'a.md'), '# a');
+
+    const out = JSON.parse(run(`migrate project=work path=${work} --dry-run`));
+
+    expect(out.status).toBe('dry-run');
+    expect(out.plan.copies.map((c: { rel: string }) => c.rel)).toEqual(['a.md']);
+    expect(existsSync(join(testDir, 'agent-memory', 'work'))).toBe(false);
+  });
 });

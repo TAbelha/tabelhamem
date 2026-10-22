@@ -34,6 +34,10 @@ scriptable `tamem ipc ... --json` CLI covers automation.
    memory into the shared store, symlinks Claude's memory dir to it, writes
    the `.tabelhamem.md` pointer (never touches `AGENTS.md`), and gitignores
    the pointer. Works across every git worktree of the repo.
+   `tamem ipc migrate project=<slug> path=<dir> [--dry-run]` adopts the real
+   Claude memory dirs of any path (repo or not, every config dir) into the
+   shared store without overwriting anything, backs them up, and symlinks
+   them; run `link` afterwards for repos to get the pointer.
 2. The OpenCode plugin (`packages/plugin/src/opencode.js`, installed to
    `~/.config/opencode/plugins/`) injects the shared memory into each model
    call, exposes `memory_search`/`memory_write` tools, and records a session

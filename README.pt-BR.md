@@ -35,6 +35,10 @@ um CLI scriptável `tamem ipc ... --json` cobre automação.
    de memória do Claude pra lá, escreve o pointer `.tabelhamem.md` (nunca
    toca no `AGENTS.md`) e adiciona o pointer ao gitignore. Vale pra todos
    os worktrees do repo.
+   `tamem ipc migrate project=<slug> path=<dir> [--dry-run]` adota os dirs
+   reais de memória do Claude de qualquer path (repo ou não, todos os config
+   dirs) no compartilhado sem sobrescrever nada, faz backup e cria os
+   symlinks; pra repos, rode `link` depois pra ganhar o pointer.
 2. O plugin OpenCode (`packages/plugin/src/opencode.js`, instalado em
    `~/.config/opencode/plugins/`) injeta a memória compartilhada em cada
    chamada do modelo, expõe as tools `memory_search`/`memory_write` e grava

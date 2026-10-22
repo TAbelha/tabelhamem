@@ -6,7 +6,8 @@ export type IPCMethod =
   | 'list'
   | 'search'
   | 'health'
-  | 'search-digest';
+  | 'search-digest'
+  | 'migrate';
 
 export interface IPCArgs {
   method: IPCMethod;

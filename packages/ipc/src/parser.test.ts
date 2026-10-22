@@ -24,4 +24,12 @@ describe('parseIPCArgs', () => {
 
     expect(result.filters.query).toBe('a=b');
   });
+
+  it('parseia migrate com --dry-run como flag', () => {
+    const result = parseIPCArgs(['migrate', 'project=ws', 'path=/home/x', '--dry-run', '--json']);
+
+    expect(result.method).toBe('migrate');
+    expect(result.filters).toEqual({ project: 'ws', path: '/home/x', 'dry-run': 'true' });
+    expect(result.json).toBe(true);
+  });
 });

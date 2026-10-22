@@ -7,6 +7,7 @@ import { ipcList } from './list.js';
 import { ipcSearch } from './search.js';
 import { ipcHealth } from './health.js';
 import { ipcSearchDigest } from './search-digest.js';
+import { ipcMigrate } from './migrate.js';
 
 export function runIPC(args: IPCArgs): number {
   switch (args.method) {
@@ -26,6 +27,8 @@ export function runIPC(args: IPCArgs): number {
       return ipcHealth(args);
     case 'search-digest':
       return ipcSearchDigest(args);
+    case 'migrate':
+      return ipcMigrate(args);
     default:
       console.error(`método desconhecido: ${args.method}`);
       return 1;
